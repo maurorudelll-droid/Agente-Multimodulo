@@ -117,6 +117,14 @@ def guardar_dataset_modulo(modulo_id, archivo_subido):
     destino = os.path.join(mod_info["path"], f"base_datos{ext}")
 
     try:
+        # Eliminar archivos Excel/CSV previos para evitar duplicados o versiones viejas
+        for f in os.listdir(mod_info["path"]):
+            if f.endswith(('.xlsx', '.xls', '.csv')) and not f.startswith("~$"):
+                try:
+                    os.remove(os.path.join(mod_info["path"], f))
+                except Exception:
+                    pass
+
         with open(destino, "wb") as f:
             f.write(archivo_subido.getbuffer())
 

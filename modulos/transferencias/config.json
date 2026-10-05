@@ -1,0 +1,14 @@
+{
+  "id": "transferencias",
+  "nombre": "Transferencias y Desvíos",
+  "icono": "🔀",
+  "descripcion": "Análisis de transferencias a 1L, 2L, Retención, Complejas, Técnica Priority (COE) y Técnica Resto.",
+  "orden": 3,
+  "keywords": [
+    "transferencia", "transferencias", "transf", "transferir",
+    "derivacion", "derivaciones", "desvio", "desvios", "desvíos",
+    "1l", "2l", "rep 1l", "rep 2l", "rep_1l", "rep_2l", "1l+2l",
+    "retencion", "retención", "complejas", "tecnica", "técnica",
+    "coe", "priority", "resto"
+  ]
+}

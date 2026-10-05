@@ -1,0 +1,16 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Credenciales sensibles (se configuran en Streamlit Cloud Secrets)
+.streamlit/secrets.toml
+
+# Datos locales temporales de usuarios
+usuarios_data/
+
+# Archivos Excel duplicados en la raíz (se usan los de cada carpeta de modulos/)
+/*.xlsx
+
+# Logs y temporales
+*.log

@@ -1,0 +1,196 @@
+NPS - FROMULAS Y VALORES.
+%NPS= (Promotores-detractor)/[Q meda]
+%Detractor= detractor/[Q meda]
+%Promotor= Promotores/Q Meda
+%Resolucion=[Res si]/[Q Res]
+Cantidad de Encuestas= Q Meda
+Cantidad de Detractores = detractor
+Cantidad de Promotores = Promotores
+Cantidad de Neutros = Neutro
+
+NPS ESTRUCTURA DEL ARCHIVO Y COLUMNAS
+Periodo	= Periodo de Año y mes que se encuentra el dato y las encuestas.
+mes = Mes donde se encuentra el dato y las encuesta.	
+dia = DIA donde se encuentra el dato y las encuesta.		
+Programa = Programa de atención donde se encuentra el dato y las encuesta.	
+PCRC = PCRC De atención donde se encuentra el dato y las encuesta.	
+Proveedor = PROVEEDOR de atención donde se encuentra el dato y las encuesta.	
+Skill = SKILL De atención donde se encuentra el dato y las encuesta.
+Id agente = Persona o agente que atiende ese dato y las encuestas.
+TECNOLOGIA ACCESO HOGAR	= Tecnología de Acceso hogar que tiene el cliente que contesto la encuesta.
+Nombre VDN AUTO	= Nombre del VDN de gestión donde se atiende esa Encuesta.
+Q meda	= Cantidad de encuestas de satisfacción o NPS
+Q Res	= Cantidad de encuestas que son positivas en Resolución.
+Q sat	= Cantidad de encuestas que son positivas en Satisfacción 
+sat top2	
+sat botton	
+Res si	= Cantidad de encuestas que fueron resueltas positivamente.
+Promotores = Cantidad de encuestas que respondieron con nota Promotor, nota equivalente a 9.
+Neutro	= Cantidad de encuestas que respondieron con nota Neutra, nota equivalente entre 4 y 8.
+detractor = Cantidad de encuestas que respondieron con nota Detractora, nota equivalente menor a 4
+Q 0y1 = Cantidad de encuestas que respondieron con nota 0 y 1
+Sat - Asesor	
+Predisposición	
+Conocimiento = Conocimiento promedio que tuvo el agente en esa cantidad de encuestas.	
+Producto = Tipo de producto del cliente que responde la encuesta.	
+Campañas2 = Es la segmentación de Campaña donde fue atendida esa encuesta.	
+Producto Unificado = Segmentación según el servicio que tiene el cliente.	
+Semana = Es la semana que se encuentra el dato y las encuestas, dentro de un mes.
+
+
+_______________________________________________________________
+TMO - FORMULAS Y VALORES
+Cantidad de llamadas = Q Llamadas
+Baño_Horas = Baño/3600
+Refri_Hora = Refrigerio/3600
+_Coaching_HS = ((([Coaching Express]+[Coaching individual])+Agenda)+Reimagina)/3600
+_TT = (([Tiempo TT]+[Tiempo Hold])+[Tiempo ACW in])/[Q llamadas]
+_TSaliente = [Tiempo Saliente]/[Q llamadas]
+_HOLD = [Tiempo Hold]/[Q llamadas]
+_Horas_Disponible = ((_TMO*[Q llamadas])+[Tiempo Avail])/3600
+_ACW = [Tiempo ACW in]/[Q llamadas]
+%Baño = Baño_Horas/_Horas_Dispo
+%Refri = Refri_Horas/_Horas_Dispo
+Tiempo hablado con cliente = _TT
+Tiempo saliente = _TSaliente
+ACW o Tiempo después de llamada = _ACW
+Tiempo de holdeo = _HOLD
+TMO o TMO TOAL = ((_TT+_TSaliente)+_ACW)+_HOLD
+_% Coaching = _Coaching_HS/_Horas_Dispo
+
+TMO ESTRUCTURA DEL ARCHIVO Y COLUMNAS
+Periodo	= Periodo de Año y mes que se encuentra de atención.
+NombreProveedor = PROVEEDOR de atención donde se encuentra el dato de atención.	
+dia = DIA donde se encuentra el dato de atención.	
+NombreLider = Nombre del líder del Agente donde se encuentra el dato.
+ApellidoNombre	= Nombre del AGENTE que atiende y se encuentra el dato.
+logid = Persona o agente que atiende ese dato de atención.
+nombrepcrc = PCRC De atención donde se encuentra el dato de atención.	
+SKILL = SKILL De atención donde se encuentra el dato de atención.	
+nombreSkill = Nombre del SKILL De atención donde se encuentra el dato de atención.
+Q llamadas = Cantidad de llamadas Validas.	
+Tiempo TT = Tiempo que dura conversando con el cliente.
+Tiempo Staff = Tiempo que el agente se toma para tener Staf.
+Tiempo Avail = Tiempo que el agente esta listo para recibir llamadas.
+Tiempo ACW in = Tiempo de ACW post llamada.
+Tiempo Hold = Tiempo de hold de llamada.
+Tiempo Saliente	Tiempo Auxiliares	
+Baño = Tiempo que se toma el agente para ir al baño.
+Problema Sistema = Tiempos que se toma el agente cuando tiene problemas de sistemas para atender llamadas.
+Refrigerio = Tiempo de refrigerio que se toma el agente para descansar.
+Agenda = Tiempo de agenda de novedades que se toma el agente
+Capacitación = Tiempo que se toma el agente donde hace capacitaciones.
+Coaching individual = Tiempo que se toma el agente para que le hagan devolución de rendimiento.
+Coaching Express = Tiempo que se toma el agente para hacer tramites/capacitaciones/Otros.
+Re entrenamiento = Tiempo que se toma el agente para hacer capacitaciones.
+Gestiones Out = Tiempo para hacer tramites fuera de llamada que se toma el agente.
+tareas gremiales = Tiempo para tareas gremiales que se toma el agente.
+Otros = Tiempo en OTROS que se toma el agente.
+descanso visual	Reimagina = Tiempo de descanso visual que se toma el agente.
+Aux 24	
+Programa = Programa de atención donde se encuentra el dato.	
+Campaña = Es la segmentación de campaña donde fue atendido el cliente.
+
+
+_______________________________________________________________
+TRANSFERENCIAS - FORMULAS Y VALORES
+Llamadas validas o cantidad de llamadas = Q Llamadas
+Llamadas transferidas totales = Q Transferidas
+Llamadas transferidas a Retencion = RetencioNTransf
+Llamadas transferidas a Complejas = ComplejasTransf
+Llamadas transferidas a Tecnica normal = TecnicaTransfResto
+Llamadas transferidas a Tecnica COE o Tecnica Priority = TecnicaTransfPrio
+Rep 1L (Transferencias a Primera Linea) = [REP 1L]/[Q llamadas]
+Rep 2L (Transferencias a Segunda Linea) = [REP 2L]/[Q llamadas]
+1L+2L o Transferencias 1Linea+2Linea = [Rep 1L]+[Rep 2L]
+% Transferencias a Complejas = ComplejasTransf/[Q llamadas]
+% Transferencias a Retencion = RetencionTransf/[Q llamadas]
+% Transferencias a Tecnica Priority o COE = TecnicaTransfPrio/[Q llamadas]
+% Transferencias a Tecnica normal o Tecnica Resto = TecnicaTransfResto/[Q llamadas]
+
+
+TRANSFERENCIAS ESTRUCTURA DEL ARCHIVO Y COLUMNAS
+Periodo	
+Entidad Origen	
+Programa Origen	
+Pcrc Origen	
+Skill Origen	
+Logid	
+Id Persona	
+Representante Origen	
+Lider del Representante	
+Proveedor Origen	
+VDN INGRESO	
+Transferencia	
+Destino por Entidad	
+Nombre Tipo Destino	
+Entidad Destino Vdn	
+Programa Destino Vdn	
+Pcrc Destino Vdn	
+Vdn Destino	
+Nombre VDN Destino	
+FRENTE_IVR	
+GEST_AUTO	
+REP_1L	
+REP_2L	
+SIN_CLASIFICAR	
+SIN_TRANSFERENCIA	
+Q llamadas	
+Q transferidas	
+Proveedor Real	
+Transf. Colas Principales	
+RetencionTransf	
+ComplejasTransf	
+TecnicaTransfResto	
+TecnicaTransfPrio	
+Producto
+
+_________________________________________________________________
+SPLS - FORMULAS Y VALORES
+Llamadas validas para SPL = Q SPL Atendidos
+Llamadas validas para SPL de 30 Minutos o SPL30 = Q SPL30 Reiterados
+Llamadas validas para SPL de 48 Horas o SPL48 = Q SPL48 Reiterados
+Llamadas validas para SPL de 7 Dias o SPL7 = Q SPL7 Reiterados
+%Spl 30 = 1-([Q SPL30 Reiterados]/[Q SPL Atendidos])
+%Spl 48 = 1-([Q SPL48 Reiterados]/[Q SPL Atendidos])
+%Spl 7D = 1-([Q SPL7 Reiterados]/[Q SPL Atendidos])
+
+
+SPLS ESTRUCTURA DEL ARCHIVO Y COLUMNAS
+Mes	
+Proveedor	
+Oficina	
+Jefe	
+Lider	
+Nombre	
+DNI	
+Logid	
+Funcion	
+NombreEntidad_SK	
+NombrePrograma_SK	
+NombrePCRC_SK	
+NombreSkill	
+Skill	
+Nombre VDN Auto	
+Atendidas	
+Salientes	
+Tiempo in	
+Tiempo out	
+llamadas validas	
+Q_TOL Total	
+Q_SPL Atendidos	
+Q_SPL30 Reiterados	
+Q_SPL48 Reiterados	
+Q_SPL7 Reiterados	
+Q_TRANSF Llamadas	
+Q_TRANSF Total	
+Q_ENC Llamadas	
+Q_ENC Completas	
+Q_NPS Promotores	
+Q_Aban Hold	
+Campaña	
+Producto
+
+
+
+

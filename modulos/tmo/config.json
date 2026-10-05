@@ -1,0 +1,13 @@
+{
+  "id": "tmo",
+  "nombre": "TMO y Tiempos Operativos",
+  "icono": "⏱️",
+  "descripcion": "Gestión de TMO, tiempos en llamada (TT), Hold, ACW, Saliente, y adherencia de tiempos auxiliares (Baño, Refrigerio, Coaching).",
+  "orden": 2,
+  "keywords": [
+    "tmo", "hablado", "tt", "tiempo tt", "hold", "acw", "saliente",
+    "tiempo saliente", "tiempos", "baño", "bano", "refrigerio", "refri",
+    "coaching", "horas disponibles", "disponibilidad", "tiempo disponible",
+    "staff", "avail", "auxiliares", "segundos"
+  ]
+}

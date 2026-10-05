@@ -284,30 +284,32 @@ if user_query:
         st.markdown(user_query)
 
     with st.chat_message("assistant", avatar=AVATAR_PATH):
-        # 1. Enrutamiento automático
-        modulos_detectados_ids = gestor_modulos.enrutar_consulta(user_query, modulos)
-        
-        # 2. Cargar datos y prompts de los módulos involucrados
-        contextos_tablas = []
-        instrucciones_modulos = []
-        nombres_modulos = []
+        frase_spinner = obtener_frase_spinner()
+        with st.spinner(frase_spinner):
+            # 1. Enrutamiento automático
+            modulos_detectados_ids = gestor_modulos.enrutar_consulta(user_query, modulos)
+            
+            # 2. Cargar datos y prompts de los módulos involucrados
+            contextos_tablas = []
+            instrucciones_modulos = []
+            nombres_modulos = []
 
-        for mid in modulos_detectados_ids:
-            mod_info = gestor_modulos.obtener_modulo(mid)
-            if mod_info:
-                tablas_dict, meta = gestor_modulos.cargar_tablas_modulo(mid)
-                if tablas_dict is not None:
-                    txt_tablas = mod_info["formulas"].generar_contexto_tablas(tablas_dict)
-                    cfg = mod_info["config"]
-                    nombres_modulos.append(f"{cfg.get('icono', '')} {cfg.get('nombre', mid)}")
-                    contextos_tablas.append(f"=== BASE DE DATOS / MÓDULO: {cfg.get('nombre', mid).upper()} ===\n{txt_tablas}")
-                    instrucciones_modulos.append(mod_info["prompt"].obtener_system_instruction())
+            for mid in modulos_detectados_ids:
+                mod_info = gestor_modulos.obtener_modulo(mid)
+                if mod_info:
+                    tablas_dict, meta = gestor_modulos.cargar_tablas_modulo(mid)
+                    if tablas_dict is not None:
+                        txt_tablas = mod_info["formulas"].generar_contexto_tablas(tablas_dict)
+                        cfg = mod_info["config"]
+                        nombres_modulos.append(f"{cfg.get('icono', '')} {cfg.get('nombre', mid)}")
+                        contextos_tablas.append(f"=== BASE DE DATOS / MÓDULO: {cfg.get('nombre', mid).upper()} ===\n{txt_tablas}")
+                        instrucciones_modulos.append(mod_info["prompt"].obtener_system_instruction())
 
-        if not contextos_tablas:
-            st.error("No se pudo cargar la información de las bases seleccionadas.")
-        else:
-            # 3. Construir prompt orquestador
-            system_prompt_maestro = f"""
+            if not contextos_tablas:
+                st.error("No se pudo cargar la información de las bases seleccionadas.")
+            else:
+                # 3. Construir prompt orquestador
+                system_prompt_maestro = f"""
 PROMPT MAESTRO UNIFICADO: INTELIGENCIA OPERATIVA MULTI-MÓDULO
 Sos el Agente Único Master de Inteligencia Operativa.
 Tienes acceso simultáneo a múltiples bases de datos operativas de la compañía.
@@ -327,10 +329,8 @@ REGLAS GENERALES:
 DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
 """ + "\n\n".join(instrucciones_modulos)
 
-            contexto_datos_unificado = "\n\n".join(contextos_tablas)
+                contexto_datos_unificado = "\n\n".join(contextos_tablas)
 
-            frase_spinner = obtener_frase_spinner()
-            with st.spinner(frase_spinner):
                 client = obtener_cliente_gemini()
                 if client is None:
                     st.warning("🔑 **Falta tu clave de Gemini:** Por favor ingresa tu Gemini API Key en la barra lateral izquierda para que el agente pueda responder.")

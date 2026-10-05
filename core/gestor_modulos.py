@@ -1,5 +1,6 @@
 import os
 import json
+import pickle
 import importlib
 import pandas as pd
 import streamlit as st
@@ -76,10 +77,19 @@ def buscar_archivo_dataset(path_mod):
 
 @st.cache_data
 def cargar_tablas_modulo(modulo_id):
-    """Carga y procesa las tablas exactas del módulo en caché."""
+    """Carga las tablas exactas del módulo. Usa caché serializada ultrarrápida si existe."""
     mod_info = obtener_modulo(modulo_id)
     if not mod_info:
         return None, "Módulo no encontrado."
+
+    pkl_path = os.path.join(mod_info["path"], "tablas_calculadas.pkl")
+    if os.path.exists(pkl_path):
+        try:
+            with open(pkl_path, "rb") as f:
+                data = pickle.load(f)
+            return data["tablas"], data["meta"]
+        except Exception:
+            pass
 
     dataset_path = buscar_archivo_dataset(mod_info["path"])
     if not dataset_path:
@@ -87,12 +97,18 @@ def cargar_tablas_modulo(modulo_id):
 
     try:
         tablas_dict, meta = mod_info["formulas"].procesar_dataset(dataset_path)
+        # Guardar en pickle para cargas subsiguientes ultrarrápidas
+        try:
+            with open(pkl_path, "wb") as f:
+                pickle.dump({"tablas": tablas_dict, "meta": meta}, f)
+        except Exception:
+            pass
         return tablas_dict, meta
     except Exception as e:
         return None, f"Error al procesar fórmulas: {e}"
 
 def guardar_dataset_modulo(modulo_id, archivo_subido):
-    """Guarda un nuevo dataset para el módulo y actualiza su fecha en Redis."""
+    """Guarda un nuevo dataset para el módulo, recalcula la caché y actualiza su fecha en Redis."""
     mod_info = obtener_modulo(modulo_id)
     if not mod_info:
         return False, "Módulo no encontrado."
@@ -103,9 +119,19 @@ def guardar_dataset_modulo(modulo_id, archivo_subido):
     try:
         with open(destino, "wb") as f:
             f.write(archivo_subido.getbuffer())
+
+        # Recalcular tablas y regenerar caché pickle
+        try:
+            tablas_dict, meta = mod_info["formulas"].procesar_dataset(destino)
+            pkl_path = os.path.join(mod_info["path"], "tablas_calculadas.pkl")
+            with open(pkl_path, "wb") as f:
+                pickle.dump({"tablas": tablas_dict, "meta": meta}, f)
+        except Exception as e_proc:
+            print(f"Advertencia al regenerar pickle: {e_proc}")
+
         guardar_fecha_base(modulo_id)
         st.cache_data.clear()
-        return True, "Archivo guardado exitosamente."
+        return True, "Archivo guardado y tablas recalculadas exitosamente."
     except Exception as e:
         return False, str(e)
 

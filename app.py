@@ -316,15 +316,23 @@ Tienes acceso simultáneo a múltiples bases de datos operativas de la compañí
 En esta consulta, has accedido internamente a los siguientes módulos de datos: {', '.join(nombres_modulos)}.
 
 REGLAS GENERALES:
-1. Analiza con rigor matemático estricto utilizando únicamente las tablas ya calculadas. Cero alucinación.
-2. Respeta la granularidad solicitada (Nivel Canal, Nivel PCRC, Nivel Proveedor Global o Nivel PCRC y Proveedor).
-3. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica.
-4. Si el usuario pide analizar un solo aspecto, responde con total precisión usando solo la base correspondiente.
+1. RIGOR MATEMÁTICO: Utiliza únicamente las tablas ya calculadas. Cero alucinación.
+2. PRINCIPIO DE RELEVANCIA ABSOLUTA (CERO MÉTRICAS NO SOLICITADAS):
+   - En el BLOQUE 1 (Tabla Markdown), incluye ÚNICAMENTE las métricas y columnas específicamente solicitadas por el usuario, más las dimensiones necesarias (Periodo, Proveedor o PCRC).
+   - ESTÁ ESTRICTAMENTE PROHIBIDO incluir o calcular columnas o componentes accesorios que el usuario NO pidió.
+     * Si piden "TMO por proveedor", la tabla debe contener ÚNICAMENTE: | Periodo | Proveedor | TMO Total |. JAMÁS agregues Tiempo Hablado (TT), Hold, ACW, Saliente, Horas Disponibles, Baño, Refrigerio, Coaching u otras métricas no pedidas.
+     * Si piden "%NPS", muestra ÚNICAMENTE: | Periodo | %NPS |. NO agregues Promotores, Detractores, Neutros ni %Resolución a menos que se hayan pedido explícitamente.
+     * Si piden "SPL 7D", muestra ÚNICAMENTE: | Periodo | %SPL 7 Días |. NO agregues 30m ni 48hs.
+     * Si piden "Transferencias 1L", muestra ÚNICAMENTE: | Periodo | Tasa 1L |. NO agregues 2L ni Totales ni Retención.
+3. FILTRADO TEMPORAL Y SEGMENTAL ESTRICTO:
+   - Si el usuario solicita un rango de meses o periodo específico (ej: "de Mayo a Septiembre del 2026"), filtra y devuelve ÚNICAMENTE los datos correspondientes a esos meses. No incluyas meses fuera del rango.
+   - Si pide un PCRC o Proveedor específico, filtra y devuelve ÚNICAMENTE ese PCRC o Proveedor.
+4. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
 5. Estructura rigurosamente la respuesta en 3 bloques:
-   BLOQUE 1: Tabla Markdown con métricas solicitadas (% con 1 decimal, tiempos enteros con 's', periodo en español).
-   BLOQUE 2: Máximo 3 viñetas ejecutivas ultra-cortas con desvíos y hallazgos clave (🟢 y 🔴).
+   BLOQUE 1: Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados (% con 1 decimal, tiempos enteros con 's', periodo en español).
+   BLOQUE 2: Máximo 3 viñetas ejecutivas ultra-cortas con desvíos y hallazgos clave sobre los datos solicitados (🟢 y 🔴).
    BLOQUE 3: Trazabilidad (Filtros aplicados, Nivel de agregación, Bases consultadas: {', '.join(nombres_modulos)}).
-6. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar.
+6. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
 
 DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
 """ + "\n\n".join(instrucciones_modulos)

@@ -62,55 +62,78 @@ def render_login(avatar_path="bot_avatar.png"):
                         st.error("Contraseña general incorrecta.")
                 return False
 
-            # PASO 2: Usuario y PIN
+            # PASO 2: Usuario y PIN con solapas (Iniciar Sesión / Crear Nuevo Usuario)
             else:
                 st.markdown("<h2 style='text-align: center; margin-bottom: 0;'>👤 Tu Identificación</h2>", unsafe_allow_html=True)
                 st.markdown("<p style='text-align: center; color: #64748b;'>Paso 2 de 2: Accede a tus consultas privadas</p>", unsafe_allow_html=True)
                 st.write("")
                 
-                with st.form("form_login_usuario"):
-                    usuario_input = st.text_input("Nombre de Usuario o Legajo:", key="login_user_input", placeholder="Ej: mauro.r o tu legajo").strip()
-                    pin_input = st.text_input("PIN personal (4 dígitos):", type="password", max_chars=4, key="login_pin_input", placeholder="****").strip()
-                    st.write("")
-                    boton_entrar = st.form_submit_button("Ingresar al Agente 🚀", type="primary", use_container_width=True)
+                tab_login, tab_reg = st.tabs(["🔑 Iniciar Sesión", "✨ Crear Nuevo Usuario"])
 
+                with tab_login:
+                    with st.form("form_login_existente"):
+                        usuario_input = st.text_input("Usuario o Legajo:", key="login_user_input", placeholder="Ej: mauro.r o tu legajo").strip()
+                        pin_input = st.text_input("PIN personal (4 dígitos):", type="password", max_chars=4, key="login_pin_input", placeholder="****").strip()
+                        st.write("")
+                        boton_entrar = st.form_submit_button("Ingresar al Agente 🚀", type="primary", use_container_width=True)
+
+                    if boton_entrar:
+                        if not usuario_input:
+                            st.warning("Ingresa tu usuario o legajo.")
+                        elif not pin_input or len(pin_input) != 4 or not pin_input.isdigit():
+                            st.warning("El PIN debe tener exactamente 4 números.")
+                        else:
+                            user_id = re.sub(r'[^a-zA-Z0-9_]', '', usuario_input.lower().replace(" ", "_"))
+                            usuarios_db = cargar_usuarios()
+
+                            if user_id not in usuarios_db:
+                                st.error("Usuario no encontrado. Por favor regístrate en la solapa 'Crear Nuevo Usuario'.")
+                            elif usuarios_db[user_id].get("pin") != pin_input:
+                                st.error("PIN incorrecto.")
+                            else:
+                                st.session_state.authenticated = True
+                                st.session_state.current_user = user_id
+                                st.session_state.user_display = usuarios_db[user_id].get("nombre", usuario_input)
+                                registrar_latido_presencia(user_id, st.session_state.user_display)
+                                st.rerun()
+
+                with tab_reg:
+                    with st.form("form_registro_nuevo"):
+                        r_user = st.text_input("Usuario o Legajo nuevo:", key="reg_user_input", placeholder="Ej: mauro.r o tu legajo").strip()
+                        r_nombre = st.text_input("Tu Nombre (como te llamará el agente):", key="reg_nombre_input", placeholder="Ej: Mauro").strip()
+                        r_pin = st.text_input("Crea un PIN numérico (4 dígitos):", type="password", max_chars=4, key="reg_pin_input", placeholder="****").strip()
+                        st.write("")
+                        boton_crear = st.form_submit_button("Crear Usuario y Entrar ✨", type="primary", use_container_width=True)
+
+                    if boton_crear:
+                        if not r_user or not r_nombre or not r_pin:
+                            st.warning("Completa todos los campos para registrarte.")
+                        elif not r_pin.isdigit() or len(r_pin) != 4:
+                            st.warning("El PIN debe tener exactamente 4 números.")
+                        else:
+                            r_id = re.sub(r'[^a-zA-Z0-9_]', '', r_user.lower().replace(" ", "_"))
+                            usuarios_db = cargar_usuarios()
+
+                            if r_id in usuarios_db:
+                                st.error("Este usuario o legajo ya está registrado. Ingresa en la solapa 'Iniciar Sesión'.")
+                            else:
+                                usuarios_db[r_id] = {
+                                    "nombre": r_nombre,
+                                    "pin": r_pin,
+                                    "fecha_registro": datetime.now(TZ_ARG).strftime("%d/%m/%Y %H:%M")
+                                }
+                                guardar_usuarios(usuarios_db)
+                                st.session_state.authenticated = True
+                                st.session_state.current_user = r_id
+                                st.session_state.user_display = r_nombre
+                                registrar_latido_presencia(r_id, r_nombre)
+                                st.success(f"¡Usuario {r_nombre} creado con éxito!")
+                                st.rerun()
+
+                st.write("")
                 if st.button("⬅️ Volver", use_container_width=True):
                     st.session_state.general_authenticated = False
                     st.rerun()
-
-                if boton_entrar:
-                    if not usuario_input:
-                        st.error("Ingresa tu nombre o legajo.")
-                        return False
-                    if not pin_input or len(pin_input) < 4 or not pin_input.isdigit():
-                        st.error("El PIN debe tener exactamente 4 números.")
-                        return False
-
-                    user_id = re.sub(r'[^a-zA-Z0-9_]', '', usuario_input.lower().replace(" ", "_"))
-                    usuarios_db = cargar_usuarios()
-
-                    if user_id in usuarios_db:
-                        if usuarios_db[user_id]["pin"] == pin_input:
-                            st.session_state.authenticated = True
-                            st.session_state.current_user = user_id
-                            st.session_state.user_display = usuarios_db[user_id].get("nombre", usuario_input)
-                            registrar_latido_presencia(user_id, st.session_state.user_display)
-                            st.rerun()
-                        else:
-                            st.error("El usuario ya existe, pero el PIN es incorrecto.")
-                            return False
-                    else:
-                        usuarios_db[user_id] = {
-                            "nombre": usuario_input,
-                            "pin": pin_input,
-                            "fecha_registro": datetime.now(TZ_ARG).strftime("%d/%m/%Y %H:%M")
-                        }
-                        guardar_usuarios(usuarios_db)
-                        st.session_state.authenticated = True
-                        st.session_state.current_user = user_id
-                        st.session_state.user_display = usuario_input
-                        registrar_latido_presencia(user_id, st.session_state.user_display)
-                        st.rerun()
 
                 return False
 

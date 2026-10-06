@@ -370,16 +370,24 @@ if user_query:
             contextos_tablas = []
             instrucciones_modulos = []
 
+            tablas_por_modulo = {}
             for mid in modulos_detectados_ids:
                 mod_info = gestor_modulos.obtener_modulo(mid)
                 if mod_info:
                     tablas_dict, meta = gestor_modulos.cargar_tablas_modulo(mid)
                     if tablas_dict is not None:
+                        tablas_por_modulo[mid] = tablas_dict
                         txt_tablas = gestor_modulos.generar_contexto_modulo(mod_info, tablas_dict, user_query)
                         cfg = mod_info["config"]
                         nombres_modulos.append(f"{cfg.get('icono', '')} {cfg.get('nombre', mid)}")
                         contextos_tablas.append(f"=== BASE DE DATOS / MÓDULO: {cfg.get('nombre', mid).upper()} ===\n{txt_tablas}")
                         instrucciones_modulos.append(mod_info["prompt"].obtener_system_instruction())
+
+            # Si están involucrados NPS y TMO (o la consulta menciona participación), inyectar cálculo exacto cruzado
+            if "nps" in tablas_por_modulo and "tmo" in tablas_por_modulo:
+                txt_part = gestor_modulos.calcular_tabla_participacion(tablas_por_modulo["nps"], tablas_por_modulo["tmo"], user_query)
+                if txt_part:
+                    contextos_tablas.append(txt_part)
 
             if not contextos_tablas:
                 err_gemini = "No se pudo cargar la información de las bases seleccionadas."
@@ -404,6 +412,7 @@ REGLAS GENERALES:
      * Si piden "%NPS", muestra ÚNICAMENTE: | Periodo | %NPS |. NO agregues Promotores, Detractores, Neutros ni %Resolución a menos que se hayan pedido explícitamente.
      * Si piden "SPL 7D", muestra ÚNICAMENTE: | Periodo | %SPL 7 Días |. NO agregues 30m ni 48hs.
      * Si piden "Transferencias 1L", muestra ÚNICAMENTE: | Periodo | Tasa 1L |. NO agregues 2L ni Totales ni Retención.
+     * Si piden "Porcentaje de Participación" (o "% Participación"), muestra ÚNICAMENTE: | Periodo | (Dimensión) | % Participación | (o agrega Q Meda y Q Llamadas solo si solicitan los totales).
 3. FILTRADO TEMPORAL Y SEGMENTAL ESTRICTO:
    - Si el usuario solicita un rango de meses o periodo específico (ej: "de Mayo a Septiembre del 2026"), filtra y devuelve ÚNICAMENTE los datos correspondientes a esos meses. No incluyas meses fuera del rango.
    - Si pide un PCRC o Proveedor específico, filtra y devuelve ÚNICAMENTE ese PCRC o Proveedor.
@@ -422,8 +431,18 @@ REGLAS GENERALES:
      * Transferencias y Desvíos: Menor tasa es MEJOR (🟢 para la menor tasa, 🔴 para la mayor tasa).
      * %NPS y Satisfacción: Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
      * %SPL y Resolución: Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
-6. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
-7. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en negrita:
+     * %Participación (Q Meda / Q Llamadas): Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
+6. CÁLCULO DE MÉTRICA CRUZADA - "PORCENTAJE DE PARTICIPACIÓN":
+   - Cuando el usuario consulte el "Porcentaje de participación" (o "% Participación", "participación de encuestas"):
+     * DEFINICIÓN: Es la cantidad de participación de encuestas por cantidad de llamadas atendidas.
+     * COMPONENTES:
+       - "Q MEDA" (Cantidad de encuestas): Proviene de la columna Encuestas_Total del módulo NPS.
+       - "Q Llamadas" (Cantidad de llamadas atendidas): Proviene de la columna Llamadas_Validas del módulo TMO.
+     * FÓRMULA MATEMÁTICA EXACTA: (Q MEDA / Q Llamadas) * 100.
+     * Se expresa siempre en porcentaje con 1 decimal (ejemplo: "2.6%").
+     * Utiliza directamente los datos matemáticos pre-calculados en la tabla cruzada provista.
+7. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
+8. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en negrita:
    ### **BLOQUE 1: Datos Operativos**
    (Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados: % con 1 decimal, tiempos enteros con 's', periodo en español, y semáforos 🟢 / 🔴 en los valores extremos. Cada fila en una línea nueva separada por \\n).
 
@@ -432,7 +451,7 @@ REGLAS GENERALES:
 
    ### **BLOQUE 3: Trazabilidad**
    (Filtros aplicados, Nivel de agregación, Bases consultadas: {', '.join(nombres_modulos)}).
-8. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
+9. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
 
 DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
 """ + "\n\n".join(instrucciones_modulos)

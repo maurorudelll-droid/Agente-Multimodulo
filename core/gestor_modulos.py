@@ -206,6 +206,56 @@ def generar_contexto_modulo(mod_info, tablas_dict, user_query=""):
         partes.append(f"--- {desc} ---\n" + df.to_string(index=False))
     return "\n\n".join(partes)
 
+def calcular_tabla_participacion(tablas_nps, tablas_tmo, user_query=""):
+    """
+    Calcula de forma matemática exacta el 'Porcentaje de Participación' entre módulos:
+    Fórmula: (Q MEDA / Q Llamadas) * 100
+    - Q MEDA: Encuestas_Total (módulo NPS)
+    - Q Llamadas: Llamadas_Validas (módulo TMO)
+    Genera tabla estructurada pre-calculada para alimentar a Gemini con rigor matemático exacto.
+    """
+    if not isinstance(tablas_nps, dict) or not isinstance(tablas_tmo, dict):
+        return ""
+
+    tablas_sel_nps = seleccionar_tablas_relevantes(tablas_nps, user_query)
+    tablas_sel_tmo = seleccionar_tablas_relevantes(tablas_tmo, user_query)
+
+    bloques = []
+    for dim in ["canal", "proveedor", "pcrc", "pcrc_proveedor"]:
+        if dim in tablas_sel_nps and dim in tablas_sel_tmo:
+            df_nps = tablas_sel_nps[dim]
+            df_tmo = tablas_sel_tmo[dim]
+            if "Encuestas_Total" in df_nps.columns and "Llamadas_Validas" in df_tmo.columns:
+                cols_merge = ["Periodo_Str"]
+                if dim == "proveedor" and "PROVEEDOR" in df_nps.columns and "PROVEEDOR" in df_tmo.columns:
+                    cols_merge.append("PROVEEDOR")
+                elif dim == "pcrc" and "PCRC" in df_nps.columns and "PCRC" in df_tmo.columns:
+                    cols_merge.append("PCRC")
+                elif dim == "pcrc_proveedor":
+                    if "PCRC" in df_nps.columns and "PCRC" in df_tmo.columns:
+                        cols_merge.append("PCRC")
+                    if "PROVEEDOR" in df_nps.columns and "PROVEEDOR" in df_tmo.columns:
+                        cols_merge.append("PROVEEDOR")
+
+                cols_nps = cols_merge + ["Encuestas_Total"]
+                cols_tmo = cols_merge + ["Llamadas_Validas"]
+
+                try:
+                    df_m = pd.merge(df_nps[cols_nps], df_tmo[cols_tmo], on=cols_merge, how="inner")
+                    mask_val = df_m["Llamadas_Validas"] > 0
+                    df_m["Participacion_%"] = "0.0%"
+                    df_m.loc[mask_val, "Participacion_%"] = (
+                        (df_m.loc[mask_val, "Encuestas_Total"] / df_m.loc[mask_val, "Llamadas_Validas"]) * 100
+                    ).round(1).astype(str) + "%"
+                    df_m.rename(columns={"Encuestas_Total": "Q_Meda", "Llamadas_Validas": "Q_Llamadas"}, inplace=True)
+                    bloques.append(f"--- TABLA CRUZADA EXACTA % PARTICIPACIÓN ({dim.upper()}): Q_Meda / Q_Llamadas ---\n" + df_m.to_string(index=False))
+                except Exception:
+                    pass
+
+    if bloques:
+        return "=== TABLA CRUZADA PRE-CALCULADA MATEMÁTICA EXACTA: PORCENTAJE DE PARTICIPACIÓN (Q MEDA / Q LLAMADAS) ===\n" + "\n\n".join(bloques)
+    return ""
+
 def enrutar_consulta(user_query, modulos_disponibles):
     """
     Detecta de forma inteligente qué módulos son relevantes para la consulta del usuario.
@@ -218,6 +268,13 @@ def enrutar_consulta(user_query, modulos_disponibles):
         kws = mod.get("keywords", [])
         if any(kw in query_lower for kw in kws):
             modulos_seleccionados.append(mod["id"])
+
+    # Si la consulta pide 'participación' o cruce de encuestas/llamadas, activar NPS y TMO
+    if "participaci" in query_lower or ("encuesta" in query_lower and "llamada" in query_lower):
+        if "nps" not in modulos_seleccionados and any(m["id"] == "nps" for m in modulos_disponibles):
+            modulos_seleccionados.append("nps")
+        if "tmo" not in modulos_seleccionados and any(m["id"] == "tmo" for m in modulos_disponibles):
+            modulos_seleccionados.append("tmo")
 
     # Si no hubo coincidencia específica (ej. saludo, pregunta general del canal), se inyectan todos
     if not modulos_seleccionados:

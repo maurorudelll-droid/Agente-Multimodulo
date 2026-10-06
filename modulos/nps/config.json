@@ -19,7 +19,12 @@
     "encuesta",
     "encuestas",
     "meda",
-    "csat"
+    "q meda",
+    "csat",
+    "participacion",
+    "participación",
+    "porcentaje de participacion",
+    "porcentaje de participación"
   ],
   "metricas": [
     "%NPS (Net Promoter Score)",
@@ -27,6 +32,7 @@
     "%Detractores",
     "%Neutros",
     "%Resolución de Llamadas",
-    "Cantidad de Encuestas (Q Meda)"
+    "Cantidad de Encuestas (Q Meda)",
+    "% Participación (Q Meda / Q Llamadas TMO)"
   ]
 }

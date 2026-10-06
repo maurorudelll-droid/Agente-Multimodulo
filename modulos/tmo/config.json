@@ -25,7 +25,13 @@
     "staff",
     "avail",
     "auxiliares",
-    "segundos"
+    "segundos",
+    "q llamadas",
+    "llamadas atendidas",
+    "participacion",
+    "participación",
+    "porcentaje de participacion",
+    "porcentaje de participación"
   ],
   "metricas": [
     "TMO Total (segundos)",

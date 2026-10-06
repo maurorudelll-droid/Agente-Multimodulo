@@ -67,12 +67,40 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
         series = chart_data.get("series", [])
         unidad = chart_data.get("unidad", "")
 
-        # Ordenar cronológicamente si es una serie temporal
+        # Ordenar cronológicamente si es una serie temporal (meses en español)
         if tipo not in ["torta", "pie", "circular", "dona", "donut"] and eje_x and series:
             eje_x, series = ordenar_cronologico(eje_x, series)
 
         colores = ['#2563eb', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6']
         fig = go.Figure()
+
+        es_multilinea = False
+        conviene_enfocar = False
+        rango_enfocado = None
+        rango_completo = None
+
+        layout_args = dict(
+            title=dict(text=f"<b>📈 {titulo}</b>", x=0.02, xanchor="left", font=dict(size=17, color="#0f172a")),
+            xaxis_title="<b>Periodo / Segmento</b>",
+            yaxis_title=f"<b>Valor ({unidad})</b>" if unidad else "<b>Valor</b>",
+            template="plotly_white",
+            height=480,
+            hovermode="x unified" if len(series) > 1 else "closest",
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.22,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=12, color="#1e293b"),
+                bgcolor="rgba(248, 250, 252, 0.9)",
+                bordercolor="#cbd5e1",
+                borderwidth=1,
+                itemclick="toggle",
+                itemdoubleclick="toggleothers"
+            ),
+            margin=dict(l=45, r=60 if (tipo not in ["torta", "pie", "circular", "dona", "donut"] and len(series) > 2) else 130, t=75, b=90)
+        )
 
         # Caso 1: Torta / Donut
         if tipo in ["torta", "pie", "circular", "dona", "donut"]:
@@ -84,8 +112,15 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
                 textinfo="label+value+percent",
                 hovertemplate="%{label}: <b>%{value}" + (f"{unidad}" if unidad else "") + "</b> (%{percent})<extra></extra>"
             ))
-        # Caso 2: Barras
+        # Caso 2: Barras Agrupadas (barmode="group", NUNCA apiladas)
         elif tipo in ["barra", "barras", "bar"]:
+            todos_los_valores = []
+            for s in series:
+                for v in s.get("valores", []):
+                    if isinstance(v, (int, float)):
+                        todos_los_valores.append(float(v))
+            max_val = max(todos_los_valores) if todos_los_valores else 100.0
+
             for i, s in enumerate(series):
                 nombre = s.get("nombre", "Métrica")
                 valores = s.get("valores", [])
@@ -96,15 +131,21 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
                     name=nombre,
                     text=[f"<b>{v}{unidad}</b>" for v in valores],
                     textposition="outside",
-                    marker_color=color,
+                    textfont=dict(size=10, family="Arial, sans-serif"),
+                    marker=dict(color=color, line=dict(width=0.5, color="#334155")),
                     hovertemplate="<b>" + str(nombre) + "</b>: %{y}" + (str(unidad) if unidad else "") + "<extra></extra>"
                 ))
-            fig.update_layout(barmode="group")
+
+            layout_args["barmode"] = "group"
+            layout_args["bargap"] = 0.20
+            layout_args["bargroupgap"] = 0.05
+            # Altura suficiente para que los valores de arriba de cada barra no se corten
+            layout_args["yaxis"] = dict(range=[0, max_val * 1.18], autorange=False)
+
         # Caso 3: Líneas (con separación inteligente y enfoque dinámico)
         else:
             es_multilinea = len(series) > 2
 
-            # Recolectar valores para análisis de rango
             todos_los_valores = []
             for s in series:
                 for v in s.get("valores", []):
@@ -161,6 +202,10 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
                         borderpad=3
                     )
 
+            if conviene_enfocar:
+                layout_args["yaxis"] = dict(range=rango_enfocado, autorange=False)
+
+        # Botones interactivos en la barra superior
         updatemenus = []
         if incluir_updatemenus and tipo not in ["torta", "pie", "circular", "dona", "donut"]:
             botones = []
@@ -171,9 +216,9 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
                 botones.append(dict(label="🏷️ Ver Valores", method="restyle", args=[{"mode": "lines+markers+text"}]))
                 botones.append(dict(label="👁️ Ocultar Valores", method="restyle", args=[{"mode": "lines+markers"}]))
 
-            if es_multilinea or conviene_enfocar:
-                botones.append(dict(label="🔍 Separar Líneas", method="relayout", args=[{"yaxis.autorange": False, "yaxis.range": rango_enfocado}]))
-                botones.append(dict(label="📏 Escala desde 0", method="relayout", args=[{"yaxis.autorange": False, "yaxis.range": rango_completo}]))
+                if es_multilinea or conviene_enfocar:
+                    botones.append(dict(label="🔍 Separar Líneas", method="relayout", args=[{"yaxis.autorange": False, "yaxis.range": rango_enfocado}]))
+                    botones.append(dict(label="📏 Escala desde 0", method="relayout", args=[{"yaxis.autorange": False, "yaxis.range": rango_completo}]))
 
             updatemenus = [
                 dict(
@@ -189,34 +234,8 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
                 )
             ]
 
-        layout_args = dict(
-            title=dict(text=f"<b>📈 {titulo}</b>", x=0.02, xanchor="left", font=dict(size=17, color="#0f172a")),
-            xaxis_title="<b>Periodo / Segmento</b>",
-            yaxis_title=f"<b>Valor ({unidad})</b>" if unidad else "<b>Valor</b>",
-            template="plotly_white",
-            height=480,
-            hovermode="x unified" if len(series) > 1 else "closest",
-            legend=dict(
-                orientation="h",
-                yanchor="top",
-                y=-0.22,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=12, color="#1e293b"),
-                bgcolor="rgba(248, 250, 252, 0.9)",
-                bordercolor="#cbd5e1",
-                borderwidth=1,
-                itemclick="toggle",
-                itemdoubleclick="toggleothers"
-            ),
-            margin=dict(l=45, r=60 if (tipo not in ["torta", "pie", "circular", "dona", "donut"] and len(series) > 2) else 130, t=75, b=90)
-        )
-
         if updatemenus:
             layout_args["updatemenus"] = updatemenus
-
-        if tipo not in ["torta", "pie", "circular", "dona", "donut"] and conviene_enfocar:
-            layout_args["yaxis"] = dict(range=rango_enfocado, autorange=False)
 
         fig.update_layout(**layout_args)
         return fig
@@ -244,12 +263,17 @@ def dibujar_grafico(chart_data, key=None):
         series = chart_data.get("series", [])
         titulo = chart_data.get("titulo", "Visualización Operativa")
         tipo = str(chart_data.get("tipo", "linea")).lower()
+
+        # Ordenar cronológicamente si aplica
+        if eje_x and series:
+            eje_x, series = ordenar_cronologico(eje_x, series)
+
         df_chart = pd.DataFrame(index=eje_x)
         for s in series:
             df_chart[s.get("nombre", "Serie")] = s.get("valores", [])
         st.markdown(f"**📈 {titulo}**")
         if "barra" in tipo:
-            st.bar_chart(df_chart)
+            st.bar_chart(df_chart, stack=False)
         else:
             st.line_chart(df_chart)
     except Exception as e:

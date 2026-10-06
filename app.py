@@ -239,17 +239,49 @@ with col_head:
     st.title("Agente Master de Inteligencia Operativa")
     st.caption("Arquitectura V2 Multi-Módulo &nbsp;|&nbsp; Enrutamiento inteligente entre NPS, TMO, Transferencias y SPL")
 
+def es_tabla_compacta(texto_bloque1):
+    """
+    Determina si la tabla tiene 4 columnas o menos para validar si hay suficiente
+    espacio en blanco a la derecha y colocar el Bloque 2 y 3 al lado.
+    Si tiene más de 4 columnas, la tabla es ancha y debe ocupar ancho completo.
+    """
+    for linea in texto_bloque1.split("\n"):
+        strip = linea.strip()
+        if strip.startswith("|") and strip.endswith("|"):
+            cols = [c.strip() for c in strip.split("|")[1:-1]]
+            if cols and not any("---" in c for c in cols):
+                return len(cols) <= 4
+    return True
+
 def render_contenido_asistente(content, chart=None, key_chart=None):
     """
-    Renderiza la respuesta del asistente en diseño ejecutivo estándar:
-    - BLOQUE 1: Datos Operativos (Tabla)
-    - BLOQUE 2: Hallazgos Clave
-    - BLOQUE 3: Trazabilidad
-    - Gráfico Plotly interactivo por debajo si fue solicitado.
+    Renderiza la respuesta del asistente de forma adaptable:
+    - Si la tabla de datos tiene espacio en blanco lateral (<= 4 columnas):
+      Ubica el BLOQUE 1 a la izquierda (55%) y BLOQUES 2 y 3 a la derecha (45%).
+    - Si la tabla es ancha por cantidad de datos/columnas (> 4 columnas):
+      Ubica el BLOQUE 2 y 3 debajo a ancho completo.
+    - Gráfico Plotly interactivo por debajo a ancho completo.
     """
     if not content:
         return
-    st.markdown(content)
+
+    match_b2 = re.search(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*2', content)
+    if match_b2:
+        idx_b2 = match_b2.start()
+        bloque_izq = content[:idx_b2].strip()
+        bloque_der = content[idx_b2:].strip()
+
+        if es_tabla_compacta(bloque_izq):
+            col_izq, col_der = st.columns([0.55, 0.45], gap="large")
+            with col_izq:
+                st.markdown(bloque_izq)
+            with col_der:
+                st.markdown(bloque_der)
+        else:
+            st.markdown(content)
+    else:
+        st.markdown(content)
+
     if chart:
         dibujar_grafico(chart, key=key_chart)
 
@@ -275,19 +307,26 @@ consultas_sugeridas = [
     "Evolutivo de tasas de SPL 7D, 48hs y 30m a nivel canal."
 ]
 
+def on_click_sugerida(texto_consulta):
+    st.session_state["consulta_pendiente"] = texto_consulta
+
 st.markdown("**Búsquedas rápidas sugeridas:**")
 cols_sug = st.columns(len(consultas_sugeridas))
-selected_example = None
 for i, ej in enumerate(consultas_sugeridas):
-    if cols_sug[i].button(f"Consulta {i+1}", help=ej, use_container_width=True):
-        selected_example = ej
+    cols_sug[i].button(
+        f"Consulta {i+1}",
+        help=ej,
+        key=f"btn_consulta_sug_{i+1}",
+        use_container_width=True,
+        on_click=on_click_sugerida,
+        args=(ej,)
+    )
 
 # -------------------------------------------------------------
 # 8. ENTRADA DE CONSULTA Y ENRUTAMIENTO INTELIGENTE
 # -------------------------------------------------------------
-user_query = st.chat_input("Escribe tu consulta operativa (NPS, TMO, Transferencias, SPL o combinadas)...")
-if selected_example:
-    user_query = selected_example
+chat_val = st.chat_input("Escribe tu consulta operativa (NPS, TMO, Transferencias, SPL o combinadas)...")
+user_query = chat_val or st.session_state.pop("consulta_pendiente", None)
 
 if user_query:
     st.session_state.messages.append({

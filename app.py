@@ -333,12 +333,21 @@ REGLAS GENERALES:
    - Incluye SIEMPRE la línea separadora de columnas después del encabezado (| :--- | :--- | :--- |).
    - Escribe todas las filas con sus datos correspondientes de manera estándar y completa (una fila por línea). El post-procesador de la app se encarga de suprimir limpiamente los duplicados consecutivos.
    - En la columna Periodo, utiliza siempre el nombre completo en español (ej: "Mayo 2026", "Junio 2026"), nunca números tipo "2026-05".
-5. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
-6. Estructura rigurosamente la respuesta en 3 bloques:
-   BLOQUE 1: Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados (% con 1 decimal, tiempos enteros con 's', periodo en español).
+5. SEMAFORIZACIÓN EJECUTIVA OBLIGATORIA (🟢 MEJOR Y 🔴 PEOR VALOR):
+   - En la columna de la métrica consultada (para cada Periodo o grupo analizado en la tabla), agrega obligatoriamente:
+     * Un círculo verde (🟢) al lado del MEJOR valor (ej: "412s 🟢" o "78.5% 🟢").
+     * Un círculo rojo (🔴) al lado del PEOR valor (ej: "451s 🔴" o "45.8% 🔴").
+   - Criterio de negocio según la métrica:
+     * TMO y Tiempos: Menor tiempo es MEJOR (🟢 para el menor, 🔴 para el mayor).
+     * Transferencias y Desvíos: Menor tasa es MEJOR (🟢 para la menor tasa, 🔴 para la mayor tasa).
+     * %NPS y Satisfacción: Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
+     * %SPL y Resolución: Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
+6. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
+7. Estructura rigurosamente la respuesta en 3 bloques:
+   BLOQUE 1: Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados (% con 1 decimal, tiempos enteros con 's', periodo en español, y semáforos 🟢 / 🔴 en los valores extremos).
    BLOQUE 2: Máximo 3 viñetas ejecutivas ultra-cortas con desvíos y hallazgos clave sobre los datos solicitados (🟢 y 🔴).
    BLOQUE 3: Trazabilidad (Filtros aplicados, Nivel de agregación, Bases consultadas: {', '.join(nombres_modulos)}).
-7. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
+8. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
 
 DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
 """ + "\n\n".join(instrucciones_modulos)

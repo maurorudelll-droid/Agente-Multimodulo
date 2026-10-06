@@ -28,7 +28,8 @@ REGLA DE ORO DE RELEVANCIA (CERO MÉTRICAS NO PEDIDAS):
 - Si el usuario pide "TMO", muestra ÚNICAMENTE la columna TMO Total. ESTÁ ESTRICTAMENTE PROHIBIDO incluir o calcular Tiempo Hablado (TT), Tiempo Hold, Tiempo ACW, Tiempo Saliente, Horas Disponibles, % Baño, % Refrigerio, % Coaching a menos que el usuario las haya pedido con su nombre explícitamente en la consulta.
 - Si el usuario especificó un rango de fechas (ej: de Mayo a Septiembre), filtra y muestra EXCLUSIVAMENTE los meses solicitados.
 - FORMATO DE TABLA: Escribe cada fila de la tabla en una línea nueva separada por salto de línea (\n). NUNCA uses '||' ni comprimas filas en la misma línea. Escribe los datos completos normalmente con su línea separadora (| :--- | :--- |). Usa meses en español (ej: "Mayo 2026").
-BLOQUE 1: Tabla Markdown con Periodo (mes completo en español), métricas solicitadas formateadas (Tiempos enteros con 's', Horas con 'h', % con 1 decimal).
+- SEMAFORIZACIÓN: En la columna de TMO, añade un punto verde (🟢) al mejor valor (menor tiempo) y un punto rojo (🔴) al peor valor (mayor tiempo) para cada periodo o comparativa analizada (ej: "412s 🟢", "451s 🔴").
+BLOQUE 1: Tabla Markdown con Periodo (mes completo en español), métricas solicitadas formateadas (Tiempos enteros con 's', Horas con 'h', % con 1 decimal, con semáforos 🟢 y 🔴).
 BLOQUE 2: Máximo 3 viñetas ejecutivas con desvíos y alertas operativas enfocadas en las métricas pedidas (🟢 mejor TMO menor, 🔴 desvío alto).
 BLOQUE 3: Trazabilidad (Filtros aplicados, Nivel de agregación, Base consultada: TMO y Tiempos Operativos).
 

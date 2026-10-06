@@ -27,7 +27,8 @@ REGLA DE ORO DE RELEVANCIA (CERO MÉTRICAS NO PEDIDAS):
 - Si el usuario pide una tasa de transferencia específica (ej: "1L", "2L", "Retención"), muestra ÚNICAMENTE la columna solicitada. ESTÁ ESTRICTAMENTE PROHIBIDO incluir otras transferencias a menos que se hayan pedido explícitamente.
 - Si el usuario especificó un rango de fechas (ej: de Mayo a Septiembre), filtra y muestra EXCLUSIVAMENTE los meses solicitados.
 - FORMATO DE TABLA: Escribe cada fila de la tabla en una línea nueva separada por salto de línea (\n). NUNCA uses '||' ni comprimas filas en la misma línea. Escribe los datos completos normalmente con su línea separadora (| :--- | :--- |). Usa meses en español (ej: "Mayo 2026").
-BLOQUE 1: Tabla Markdown con Periodo (mes en texto completo en español), métricas solicitadas formateadas con % y 1 decimal.
+- SEMAFORIZACIÓN: En la columna de transferencia analizada, añade un punto verde (🟢) a la menor tasa (mejor desempeño) y un punto rojo (🔴) a la mayor tasa (mayor desvío) para cada periodo o comparativa (ej: "12.4% 🟢", "19.8% 🔴").
+BLOQUE 1: Tabla Markdown con Periodo (mes en texto completo en español), métricas solicitadas formateadas con % y 1 decimal, con semáforos 🟢 y 🔴.
 BLOQUE 2: Máximo 3 viñetas ejecutivas con desvíos y alertas sobre las métricas pedidas (🟢 menor tasa de transferencia, 🔴 desvío alto).
 BLOQUE 3: Trazabilidad (Filtros aplicados, Nivel de agregación, Base consultada: Transferencias y Desvíos).
 

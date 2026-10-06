@@ -144,7 +144,93 @@ def normalizar_y_suprimir_tablas(texto):
             prev_cols = []
             lineas_finales.append(linea)
 
-    return "\n".join(lineas_finales)
+    texto_normalizado = "\n".join(lineas_finales)
+    return semaforizar_tabla_por_bloque(texto_normalizado)
+
+def semaforizar_tabla_por_bloque(texto):
+    """
+    Agrega semáforos ejecutivos 🟢 (mejor) y 🔴 (peor) a la columna métrica
+    de cada bloque de periodo analizado cuando se comparan entidades.
+    """
+    if not texto or "|" not in texto:
+        return texto
+
+    lineas = texto.split("\n")
+    en_tabla = False
+    headers = []
+    filas_tabla_idx = []
+
+    for i, linea in enumerate(lineas):
+        strip = linea.strip()
+        if strip.startswith("|") and strip.endswith("|"):
+            partes = [c.strip() for c in strip.split("|")[1:-1]]
+            if all(set(c) <= set(":- ") for c in partes) and len(partes) > 0:
+                continue
+            if not en_tabla:
+                en_tabla = True
+                headers = [re.sub(r'[*_]', '', h).strip().lower() for h in partes]
+                continue
+            filas_tabla_idx.append(i)
+        else:
+            if en_tabla:
+                break
+
+    if not filas_tabla_idx or not headers:
+        return texto
+
+    col_metrica_idx = len(headers) - 1
+    nombre_metrica = headers[col_metrica_idx]
+    es_menor_mejor = any(k in nombre_metrica for k in ["tmo", "tiempo", "tt", "hold", "acw", "transf", "rep ", "desvio"])
+
+    periodo_actual = ""
+    bloques_periodo = {}
+
+    for l_idx in filas_tabla_idx:
+        partes = [c.strip() for c in lineas[l_idx].split("|")[1:-1]]
+        if len(partes) <= col_metrica_idx:
+            continue
+        col_p = partes[0]
+        if col_p != "":
+            periodo_actual = col_p
+
+        val_metrica_str = partes[col_metrica_idx]
+        val_limpio = re.sub(r'[🟢🔴]', '', val_metrica_str).strip()
+        match_num = re.search(r'([\d]+(?:[.,]\d+)?)', val_limpio)
+        if match_num:
+            val_num = float(match_num.group(1).replace(",", "."))
+            if periodo_actual not in bloques_periodo:
+                bloques_periodo[periodo_actual] = []
+            bloques_periodo[periodo_actual].append((l_idx, val_num, val_limpio))
+
+    reemplazos = {}
+    for p, items in bloques_periodo.items():
+        if len(items) >= 2:
+            valores = [it[1] for it in items]
+            min_v = min(valores)
+            max_v = max(valores)
+            if min_v != max_v:
+                for l_idx, v_num, v_str in items:
+                    if es_menor_mejor:
+                        if v_num == min_v:
+                            reemplazos[l_idx] = f"{v_str} 🟢"
+                        elif v_num == max_v:
+                            reemplazos[l_idx] = f"{v_str} 🔴"
+                        else:
+                            reemplazos[l_idx] = v_str
+                    else:
+                        if v_num == max_v:
+                            reemplazos[l_idx] = f"{v_str} 🟢"
+                        elif v_num == min_v:
+                            reemplazos[l_idx] = f"{v_str} 🔴"
+                        else:
+                            reemplazos[l_idx] = v_str
+
+    for l_idx, nuevo_val in reemplazos.items():
+        partes = [c.strip() for c in lineas[l_idx].split("|")[1:-1]]
+        partes[col_metrica_idx] = nuevo_val
+        lineas[l_idx] = "| " + " | ".join(partes) + " |"
+
+    return "\n".join(lineas)
 
 def consultar_gemini(client, system_prompt, contexto_datos, user_query, modelos=None):
     """

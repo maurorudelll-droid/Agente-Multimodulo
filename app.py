@@ -132,15 +132,23 @@ with st.sidebar:
 
     st.divider()
 
-    # Estado de las 4 bases de datos conectadas
+    # Estado de las 4 bases de datos conectadas con desplegables de métricas
     st.markdown("### 🗂️ Bases de Datos Conectadas")
     for m in modulos:
         mid = m["id"]
         fecha_m = obtener_fecha_base(mid)
         icono = m.get("icono", "📊")
         nombre = m.get("nombre", mid)
-        st.markdown(f"**{icono} {nombre}**")
-        st.caption(f"🕒 Act: `{fecha_m}`")
+        metricas = m.get("metricas", [])
+
+        with st.expander(f"{icono} {nombre}", expanded=False):
+            st.caption(f"🕒 **Actualizado:** `{fecha_m}`")
+            if m.get("descripcion"):
+                st.caption(f"*{m['descripcion']}*")
+            if metricas:
+                st.markdown("**📈 Métricas disponibles:**")
+                for met in metricas:
+                    st.markdown(f"• `{met}`")
 
     st.caption("⚡ **Powered by Mauro. R**")
     st.divider()

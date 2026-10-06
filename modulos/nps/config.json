@@ -5,8 +5,28 @@
   "descripcion": "Indicadores de Net Promoter Score (%NPS), Promotores, Detractores, Neutros y Resolución de clientes.",
   "orden": 1,
   "keywords": [
-    "nps", "satisfaccion", "satisfacción", "promotor", "promotores",
-    "detractor", "detractores", "neutro", "neutros", "resolucion",
-    "resolución", "encuesta", "encuestas", "meda", "csat"
+    "nps",
+    "satisfaccion",
+    "satisfacción",
+    "promotor",
+    "promotores",
+    "detractor",
+    "detractores",
+    "neutro",
+    "neutros",
+    "resolucion",
+    "resolución",
+    "encuesta",
+    "encuestas",
+    "meda",
+    "csat"
+  ],
+  "metricas": [
+    "%NPS (Net Promoter Score)",
+    "%Promotores",
+    "%Detractores",
+    "%Neutros",
+    "%Resolución de Llamadas",
+    "Cantidad de Encuestas (Q Meda)"
   ]
 }

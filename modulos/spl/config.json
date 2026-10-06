@@ -5,8 +5,27 @@
   "descripcion": "Tasas de resolución sin reiteración de llamadas: SPL 30 minutos, SPL 48 horas y SPL 7 días.",
   "orden": 4,
   "keywords": [
-    "spl", "reiteracion", "reiteración", "reiteraciones",
-    "reiterada", "reiteradas", "30m", "30 min", "30min",
-    "48h", "48hs", "48 hs", "7d", "7 dias", "7 días", "7dias"
+    "spl",
+    "reiteracion",
+    "reiteración",
+    "reiteraciones",
+    "reiterada",
+    "reiteradas",
+    "30m",
+    "30 min",
+    "30min",
+    "48h",
+    "48hs",
+    "48 hs",
+    "7d",
+    "7 dias",
+    "7 días",
+    "7dias"
+  ],
+  "metricas": [
+    "%SPL 30 Minutos",
+    "%SPL 48 Horas",
+    "%SPL 7 Días",
+    "Llamadas Atendidas para SPL"
   ]
 }

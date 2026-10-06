@@ -5,9 +5,37 @@
   "descripcion": "Gestión de TMO, tiempos en llamada (TT), Hold, ACW, Saliente, y adherencia de tiempos auxiliares (Baño, Refrigerio, Coaching).",
   "orden": 2,
   "keywords": [
-    "tmo", "hablado", "tt", "tiempo tt", "hold", "acw", "saliente",
-    "tiempo saliente", "tiempos", "baño", "bano", "refrigerio", "refri",
-    "coaching", "horas disponibles", "disponibilidad", "tiempo disponible",
-    "staff", "avail", "auxiliares", "segundos"
+    "tmo",
+    "hablado",
+    "tt",
+    "tiempo tt",
+    "hold",
+    "acw",
+    "saliente",
+    "tiempo saliente",
+    "tiempos",
+    "baño",
+    "bano",
+    "refrigerio",
+    "refri",
+    "coaching",
+    "horas disponibles",
+    "disponibilidad",
+    "tiempo disponible",
+    "staff",
+    "avail",
+    "auxiliares",
+    "segundos"
+  ],
+  "metricas": [
+    "TMO Total (segundos)",
+    "Tiempo Hablado (TT)",
+    "Tiempo Hold (espera)",
+    "Tiempo ACW (post-llamada)",
+    "Tiempo Saliente",
+    "Horas Disponibles",
+    "%Baño (adherencia auxiliar)",
+    "%Refrigerio (adherencia auxiliar)",
+    "%Coaching (adherencia auxiliar)"
   ]
 }

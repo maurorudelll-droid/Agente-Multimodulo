@@ -22,10 +22,9 @@ FRASES_SIMPSON = [
 
 MODELOS_DEFAULT = [
     "gemini-3.5-flash-lite",
-    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
     "gemini-flash-latest",
-    "gemini-3.8-flash",
-    "gemini-3-flash-preview"
+    "gemini-3.5-flash"
 ]
 
 def obtener_cliente_gemini():
@@ -290,7 +289,12 @@ def consultar_gemini(client, system_prompt, contexto_datos, user_query, modelos=
             break
 
     if not answer:
-        return None, None, str(ultimo_error)
+        err_str = str(ultimo_error) if ultimo_error else "Error desconocido al invocar Gemini."
+        if "429" in err_str or "resource_exhausted" in err_str.lower() or "quota" in err_str.lower():
+            err_str = "⚠️ La cuota por minuto de Google Gemini fue alcanzada temporalmente. Por favor espera 10-15 segundos y reintenta tu consulta."
+        elif "503" in err_str or "unavailable" in err_str.lower() or "high demand" in err_str.lower():
+            err_str = "⚠️ Los servidores de Google Gemini están experimentando alta demanda (Error 503). Por favor reintenta en unos instantes."
+        return None, None, err_str
 
     # Detección y extracción de bloque de gráfico <chart_json>
     chart_data = None

@@ -361,11 +361,12 @@ if user_query:
         nombres_modulos = []
         client = None
 
-        with st.spinner(frase_spinner):
+        with st.status(f"🤖 {frase_spinner}", expanded=True) as status_box:
             # 1. Enrutamiento automático
             modulos_detectados_ids = gestor_modulos.enrutar_consulta(user_query, modulos)
+            status_box.write("🔍 **Enrutando consulta:** Identificando bases de datos y dimensiones...")
             
-            # 2. Cargar datos y prompts de los módulos involucrados
+            # 2. Cargar datos y prompts de los módulos involucrados de forma optimizada
             contextos_tablas = []
             instrucciones_modulos = []
 
@@ -374,7 +375,7 @@ if user_query:
                 if mod_info:
                     tablas_dict, meta = gestor_modulos.cargar_tablas_modulo(mid)
                     if tablas_dict is not None:
-                        txt_tablas = mod_info["formulas"].generar_contexto_tablas(tablas_dict)
+                        txt_tablas = gestor_modulos.generar_contexto_modulo(mod_info, tablas_dict, user_query)
                         cfg = mod_info["config"]
                         nombres_modulos.append(f"{cfg.get('icono', '')} {cfg.get('nombre', mid)}")
                         contextos_tablas.append(f"=== BASE DE DATOS / MÓDULO: {cfg.get('nombre', mid).upper()} ===\n{txt_tablas}")
@@ -382,7 +383,11 @@ if user_query:
 
             if not contextos_tablas:
                 err_gemini = "No se pudo cargar la información de las bases seleccionadas."
+                status_box.update(label="❌ Error al cargar bases de datos", state="error", expanded=True)
             else:
+                status_box.write(f"📊 **Bases conectadas:** {', '.join(nombres_modulos)}")
+                status_box.write("🧠 **Consultando Inteligencia Operativa:** Calculando métricas y análisis con Gemini...")
+
                 # 3. Construir prompt orquestador
                 system_prompt_maestro = f"""
 PROMPT MAESTRO UNIFICADO: INTELIGENCIA OPERATIVA MULTI-MÓDULO
@@ -403,7 +408,7 @@ REGLAS GENERALES:
    - Si el usuario solicita un rango de meses o periodo específico (ej: "de Mayo a Septiembre del 2026"), filtra y devuelve ÚNICAMENTE los datos correspondientes a esos meses. No incluyas meses fuera del rango.
    - Si pide un PCRC o Proveedor específico, filtra y devuelve ÚNICAMENTE ese PCRC o Proveedor.
 4. FORMATO ESTRICTO DE TABLA MARKDOWN:
-   - CADA FILA DEBE ESTAR OBLIGATORIAMENTE EN UNA LÍNEA NUEVA SEPARADA POR SALTO DE LÍNEA (\n).
+   - CADA FILA DEBE ESTAR OBLIGATORIAMENTE EN UNA LÍNEA NUEVA SEPARADA POR SALTO DE LÍNEA (\\n).
    - NUNCA comprimas múltiples filas en una sola línea ni uses '||'.
    - Incluye SIEMPRE la línea separadora de columnas después del encabezado (| :--- | :--- | :--- |).
    - Escribe todas las filas con sus datos correspondientes de manera estándar y completa (una fila por línea). El post-procesador de la app se encarga de suprimir limpiamente los duplicados consecutivos.
@@ -420,7 +425,7 @@ REGLAS GENERALES:
 6. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
 7. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en negrita:
    ### **BLOQUE 1: Datos Operativos**
-   (Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados: % con 1 decimal, tiempos enteros con 's', periodo en español, y semáforos 🟢 / 🔴 en los valores extremos. Cada fila en una línea nueva separada por \n).
+   (Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados: % con 1 decimal, tiempos enteros con 's', periodo en español, y semáforos 🟢 / 🔴 en los valores extremos. Cada fila en una línea nueva separada por \\n).
 
    ### **BLOQUE 2: Hallazgos Clave**
    (Máximo 3 viñetas ejecutivas ultra-cortas con desvíos y hallazgos clave sobre los datos solicitados: 🟢 mejor y 🔴 peor).
@@ -442,6 +447,13 @@ DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
                         contexto_datos=contexto_datos_unificado,
                         user_query=user_query
                     )
+
+                if respuesta_texto:
+                    status_box.update(label="✅ **Análisis completado**", state="complete", expanded=False)
+                elif client is None:
+                    status_box.update(label="⚠️ **Falta API Key**", state="error", expanded=True)
+                else:
+                    status_box.update(label="❌ **Error en la consulta**", state="error", expanded=True)
 
         # FUERA DEL SPINNER: Renderizar resultados limpiamente
         if client is None and not err_gemini:

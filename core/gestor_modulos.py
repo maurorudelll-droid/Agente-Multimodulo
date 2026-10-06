@@ -143,6 +143,69 @@ def guardar_dataset_modulo(modulo_id, archivo_subido):
     except Exception as e:
         return False, str(e)
 
+def seleccionar_tablas_relevantes(tablas_dict, user_query=""):
+    """
+    Filtra inteligentemente las tablas del módulo según la dimensión solicitada en la consulta.
+    Evita enviar tablas masivas innecesarias (ej. pcrc_proveedor que puede pesar +70.000 caracteres)
+    si el usuario solo pidió nivel proveedor, nivel pcrc o nivel canal consolidado.
+    Reduce drásticamente el tamaño del contexto hasta en un 90%, evitando límites de cuota (429) y demoras.
+    """
+    if not isinstance(tablas_dict, dict):
+        return {}
+
+    q = (user_query or "").lower()
+    pide_cruzado = ("pcrc" in q and "proveedor" in q) or "cruzad" in q
+    pide_prov = "proveedor" in q
+    pide_pcrc = "pcrc" in q or "campa" in q or "servicio" in q
+    pide_canal = "canal" in q or "general" in q or "total" in q or "consolidado" in q
+
+    seleccionadas = {}
+    if pide_cruzado:
+        if "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
+            seleccionadas["canal"] = tablas_dict["canal"]
+        if "pcrc_proveedor" in tablas_dict and not getattr(tablas_dict["pcrc_proveedor"], "empty", True):
+            seleccionadas["pcrc_proveedor"] = tablas_dict["pcrc_proveedor"]
+    elif pide_prov:
+        if "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
+            seleccionadas["canal"] = tablas_dict["canal"]
+        if "proveedor" in tablas_dict and not getattr(tablas_dict["proveedor"], "empty", True):
+            seleccionadas["proveedor"] = tablas_dict["proveedor"]
+    elif pide_pcrc:
+        if "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
+            seleccionadas["canal"] = tablas_dict["canal"]
+        if "pcrc" in tablas_dict and not getattr(tablas_dict["pcrc"], "empty", True):
+            seleccionadas["pcrc"] = tablas_dict["pcrc"]
+    elif pide_canal:
+        if "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
+            seleccionadas["canal"] = tablas_dict["canal"]
+    else:
+        # Por defecto si no especifica: canal, proveedor y pcrc (se excluye pcrc_proveedor para no saturar memoria)
+        for k in ["canal", "proveedor", "pcrc"]:
+            if k in tablas_dict and not getattr(tablas_dict[k], "empty", True):
+                seleccionadas[k] = tablas_dict[k]
+
+    if not seleccionadas and "canal" in tablas_dict:
+        seleccionadas["canal"] = tablas_dict["canal"]
+
+    return seleccionadas
+
+def generar_contexto_modulo(mod_info, tablas_dict, user_query=""):
+    """
+    Genera el texto formateado en Markdown de las tablas relevantes para la consulta del usuario.
+    """
+    tablas_sel = seleccionar_tablas_relevantes(tablas_dict, user_query)
+    nombres_desc = {
+        "canal": "TABLA 1: NIVEL CANAL (Consolidado General, 1 fila por mes)",
+        "pcrc": "TABLA 2: NIVEL PCRC (Desglosado por PCRC/Campaña)",
+        "proveedor": "TABLA 3: NIVEL PROVEEDOR GLOBAL (Consolidado por Proveedor, SIN PCRC)",
+        "pcrc_proveedor": "TABLA 4: NIVEL PCRC Y PROVEEDOR (Segmentado por PCRC y Proveedor)"
+    }
+    partes = []
+    for k, df in tablas_sel.items():
+        desc = nombres_desc.get(k, f"TABLA: {k.upper()}")
+        partes.append(f"--- {desc} ---\n" + df.to_string(index=False))
+    return "\n\n".join(partes)
+
 def enrutar_consulta(user_query, modulos_disponibles):
     """
     Detecta de forma inteligente qué módulos son relevantes para la consulta del usuario.

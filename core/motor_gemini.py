@@ -54,9 +54,9 @@ def formatear_titulos_bloques(texto):
     """Normaliza los encabezados de los bloques a formato ejecutivo en negrita con BLOQUE en mayúscula."""
     if not texto:
         return texto
-    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*1[^\n|*]*', '### **BLOQUE 1: Datos Operativos**', texto)
-    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*2[^\n|*]*', '### **BLOQUE 2: Hallazgos Clave**', texto)
-    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*3[^\n|*]*', '### **BLOQUE 3: Trazabilidad**', texto)
+    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*1[^\n|]*', '### **BLOQUE 1: Datos Operativos**', texto)
+    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*2[^\n|]*', '### **BLOQUE 2: Hallazgos Clave**', texto)
+    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*3[^\n|]*', '### **BLOQUE 3: Trazabilidad**', texto)
     return texto
 
 def normalizar_y_suprimir_tablas(texto):
@@ -271,7 +271,7 @@ def consultar_gemini(client, system_prompt, contexto_datos, user_query, modelos=
     ultimo_error = None
 
     for mod in modelos:
-        for intento in range(3):
+        for intento in range(2):
             try:
                 response = client.models.generate_content(
                     model=mod,
@@ -282,7 +282,10 @@ def consultar_gemini(client, system_prompt, contexto_datos, user_query, modelos=
                     break
             except Exception as err:
                 ultimo_error = err
-                time.sleep(2.0)
+                err_msg = str(err).lower()
+                if "404" in err_msg or "not found" in err_msg:
+                    break
+                time.sleep(1.0)
         if answer:
             break
 

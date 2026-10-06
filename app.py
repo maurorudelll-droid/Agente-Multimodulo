@@ -241,27 +241,15 @@ with col_head:
 
 def render_contenido_asistente(content, chart=None, key_chart=None):
     """
-    Renderiza la respuesta del asistente en diseño ejecutivo compacto:
-    - Columna Izquierda (55%): BLOQUE 1 (Tabla con datos operativos)
-    - Columna Derecha (45%): BLOQUE 2 (Hallazgos Clave) y BLOQUE 3 (Trazabilidad)
-    - Abajo (Ancho Completo): Gráfico Plotly interactivo si existe.
+    Renderiza la respuesta del asistente en diseño ejecutivo estándar:
+    - BLOQUE 1: Datos Operativos (Tabla)
+    - BLOQUE 2: Hallazgos Clave
+    - BLOQUE 3: Trazabilidad
+    - Gráfico Plotly interactivo por debajo si fue solicitado.
     """
     if not content:
         return
-    match_b2 = re.search(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*2', content)
-    if match_b2:
-        idx_b2 = match_b2.start()
-        bloque_izq = content[:idx_b2].strip()
-        bloque_der = content[idx_b2:].strip()
-        
-        c_izq, c_der = st.columns([0.55, 0.45], gap="medium")
-        with c_izq:
-            st.markdown(bloque_izq)
-        with c_der:
-            st.markdown(bloque_der)
-    else:
-        st.markdown(content)
-
+    st.markdown(content)
     if chart:
         dibujar_grafico(chart, key=key_chart)
 
@@ -313,6 +301,12 @@ if user_query:
 
     with st.chat_message("assistant", avatar=AVATAR_PATH):
         frase_spinner = obtener_frase_spinner()
+        respuesta_texto = None
+        chart_data = None
+        err_gemini = None
+        nombres_modulos = []
+        client = None
+
         with st.spinner(frase_spinner):
             # 1. Enrutamiento automático
             modulos_detectados_ids = gestor_modulos.enrutar_consulta(user_query, modulos)
@@ -320,7 +314,6 @@ if user_query:
             # 2. Cargar datos y prompts de los módulos involucrados
             contextos_tablas = []
             instrucciones_modulos = []
-            nombres_modulos = []
 
             for mid in modulos_detectados_ids:
                 mod_info = gestor_modulos.obtener_modulo(mid)
@@ -334,7 +327,7 @@ if user_query:
                         instrucciones_modulos.append(mod_info["prompt"].obtener_system_instruction())
 
             if not contextos_tablas:
-                st.error("No se pudo cargar la información de las bases seleccionadas.")
+                err_gemini = "No se pudo cargar la información de las bases seleccionadas."
             else:
                 # 3. Construir prompt orquestador
                 system_prompt_maestro = f"""
@@ -388,9 +381,7 @@ DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
                 contexto_datos_unificado = "\n\n".join(contextos_tablas)
 
                 client = obtener_cliente_gemini()
-                if client is None:
-                    st.warning("🔑 **Falta tu clave de Gemini:** Por favor ingresa tu Gemini API Key en la barra lateral izquierda para que el agente pueda responder.")
-                else:
+                if client is not None:
                     respuesta_texto, chart_data, err_gemini = consultar_gemini(
                         client=client,
                         system_prompt=system_prompt_maestro,
@@ -398,23 +389,26 @@ DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
                         user_query=user_query
                     )
 
-                    if respuesta_texto:
-                        # Mostrar insignias de las bases consultadas
-                        badges = "".join([f"<span class='module-badge'>{m}</span>" for m in nombres_modulos])
-                        st.markdown(f"<div style='margin-bottom: 6px;'>{badges}</div>", unsafe_allow_html=True)
-                        render_contenido_asistente(
-                            respuesta_texto,
-                            chart=chart_data,
-                            key_chart=f"live_chart_{len(st.session_state.messages)}"
-                        )
+        # FUERA DEL SPINNER: Renderizar resultados limpiamente
+        if client is None and not err_gemini:
+            st.warning("🔑 **Falta tu clave de Gemini:** Por favor ingresa tu Gemini API Key en la barra lateral izquierda para que el agente pueda responder.")
+        elif respuesta_texto:
+            # Mostrar insignias de las bases consultadas
+            badges = "".join([f"<span class='module-badge'>{m}</span>" for m in nombres_modulos])
+            st.markdown(f"<div style='margin-bottom: 6px;'>{badges}</div>", unsafe_allow_html=True)
+            render_contenido_asistente(
+                respuesta_texto,
+                chart=chart_data,
+                key_chart=f"live_chart_{len(st.session_state.messages)}"
+            )
 
-                        # Persistir en historial
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "content": respuesta_texto,
-                            "chart": chart_data,
-                            "modulos_usados": nombres_modulos
-                        })
-                        guardar_historial_usuario(user_id, "unificado", st.session_state.messages)
-                    else:
-                        st.error(f"Error al procesar la respuesta con Gemini: {err_gemini}")
+            # Persistir en historial
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": respuesta_texto,
+                "chart": chart_data,
+                "modulos_usados": nombres_modulos
+            })
+            guardar_historial_usuario(user_id, "unificado", st.session_state.messages)
+        else:
+            st.error(f"Error al procesar la respuesta con Gemini: {err_gemini}")

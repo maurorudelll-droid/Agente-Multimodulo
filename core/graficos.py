@@ -52,10 +52,36 @@ def ordenar_cronologico(eje_x, series):
 
     return nuevo_eje_x, nuevas_series
 
+def detectar_unidad_serie(nombre_serie, valores, unidad_general=""):
+    """
+    Determina la unidad específica de una serie de datos ('%', 's', o '').
+    Evita imprimir 'mixta', 'varias' o textos erróneos como sufijo numérico en los puntos del gráfico.
+    """
+    n = (nombre_serie or "").lower()
+    ug_clean = (unidad_general or "").lower().strip()
+    if ug_clean in ["mixta", "mixto", "mix", "varias", "diversas", "multiple", "múltiple", "distintas"]:
+        ug_clean = ""
+
+    if any(k in n for k in ["tmo", "tiempo", "tt", "hold", "acw", "saliente", "segundo", "duracion"]):
+        return "s"
+    if any(k in n for k in ["nps", "%", "spl", "resolucion", "resolución", "tasa", "participacion", "participación", "adherencia", "baño", "refrigerio", "coaching"]):
+        return "%"
+
+    vals_num = [v for v in valores if isinstance(v, (int, float))]
+    if vals_num:
+        prom = sum(vals_num) / len(vals_num)
+        if prom > 150:
+            return "s"
+        if max(vals_num) <= 100:
+            return "%"
+
+    return ug_clean
+
 def generar_figura_plotly(chart_data, incluir_updatemenus=True):
     """
     Construye y retorna un objeto go.Figure estandarizado a partir de chart_data.
     Reutilizable tanto para renderizado en pantalla como para exportación estática a PDF/PNG.
+    Soporta eje dual Y inteligente cuando se combinan métricas de porcentaje (%) y tiempo (s).
     """
     if not chart_data or not isinstance(chart_data, dict) or not HAS_PLOTLY:
         return None
@@ -65,7 +91,7 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
         titulo = chart_data.get("titulo", "Visualización Operativa")
         eje_x = chart_data.get("eje_x", chart_data.get("x", []))
         series = chart_data.get("series", [])
-        unidad = chart_data.get("unidad", "")
+        unidad_raw = chart_data.get("unidad", "")
 
         # Ordenar cronológicamente si es una serie temporal (meses en español)
         if tipo not in ["torta", "pie", "circular", "dona", "donut"] and eje_x and series:
@@ -74,15 +100,27 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
         colores = ['#2563eb', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6']
         fig = go.Figure()
 
-        es_multilinea = False
-        conviene_enfocar = False
-        rango_enfocado = None
-        rango_completo = None
+        # Detección de unidades por serie (elimina 'mixta')
+        series_units = [detectar_unidad_serie(s.get("nombre", ""), s.get("valores", []), unidad_raw) for s in series]
+        tiene_pct = any(u == "%" for u in series_units)
+        tiene_sec = any(u == "s" for u in series_units)
+        es_dual = tiene_pct and tiene_sec and tipo not in ["torta", "pie", "circular", "dona", "donut"]
+
+        # Configuración del título del eje Y
+        if es_dual:
+            yaxis_title = "<b>Porcentaje (%)</b>"
+        elif tiene_pct:
+            yaxis_title = "<b>Porcentaje (%)</b>"
+        elif tiene_sec:
+            yaxis_title = "<b>Tiempo (segundos)</b>"
+        else:
+            ug_s = unidad_raw if str(unidad_raw).lower() not in ["mixta", "mix", "mixto", "varias"] else ""
+            yaxis_title = f"<b>Valor ({ug_s})</b>" if ug_s else "<b>Valor</b>"
 
         layout_args = dict(
             title=dict(text=f"<b>📈 {titulo}</b>", x=0.02, xanchor="left", font=dict(size=17, color="#0f172a")),
             xaxis_title="<b>Periodo / Segmento</b>",
-            yaxis_title=f"<b>Valor ({unidad})</b>" if unidad else "<b>Valor</b>",
+            yaxis=dict(title=yaxis_title),
             template="plotly_white",
             height=480,
             hovermode="x unified" if len(series) > 1 else "closest",
@@ -99,18 +137,28 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
                 itemclick="toggle",
                 itemdoubleclick="toggleothers"
             ),
-            margin=dict(l=45, r=60 if (tipo not in ["torta", "pie", "circular", "dona", "donut"] and len(series) > 2) else 130, t=75, b=90)
+            margin=dict(l=50, r=70 if es_dual else (60 if len(series) > 2 else 120), t=75, b=90)
         )
+
+        if es_dual:
+            # Eje Y2 secundario para métricas de tiempo (segundos) a la derecha
+            layout_args["yaxis2"] = dict(
+                title="<b>TMO / Tiempo (segundos)</b>",
+                overlaying="y",
+                side="right",
+                showgrid=False
+            )
 
         # Caso 1: Torta / Donut
         if tipo in ["torta", "pie", "circular", "dona", "donut"]:
             valores_torta = series[0].get("valores", []) if series else []
+            u_torta = series_units[0] if series_units else "%"
             fig.add_trace(go.Pie(
                 labels=eje_x,
                 values=valores_torta,
                 hole=0.35,
                 textinfo="label+value+percent",
-                hovertemplate="%{label}: <b>%{value}" + (f"{unidad}" if unidad else "") + "</b> (%{percent})<extra></extra>"
+                hovertemplate="%{label}: <b>%{value}" + (f"{u_torta}" if u_torta else "") + "</b> (%{percent})<extra></extra>"
             ))
         # Caso 2: Barras Agrupadas (barmode="group", NUNCA apiladas)
         elif tipo in ["barra", "barras", "bar"]:
@@ -125,69 +173,66 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
                 nombre = s.get("nombre", "Métrica")
                 valores = s.get("valores", [])
                 color = colores[i % len(colores)]
+                u_serie = series_units[i]
+                text_labels = [f"<b>{v}{u_serie}</b>" for v in valores]
+
                 fig.add_trace(go.Bar(
                     x=eje_x,
                     y=valores,
                     name=nombre,
-                    text=[f"<b>{v}{unidad}</b>" for v in valores],
+                    text=text_labels,
                     textposition="outside",
                     textfont=dict(size=10, family="Arial, sans-serif"),
                     marker=dict(color=color, line=dict(width=0.5, color="#334155")),
-                    hovertemplate="<b>" + str(nombre) + "</b>: %{y}" + (str(unidad) if unidad else "") + "<extra></extra>"
+                    hovertemplate="<b>" + str(nombre) + "</b>: %{y}" + (str(u_serie) if u_serie else "") + "<extra></extra>"
                 ))
 
             layout_args["barmode"] = "group"
             layout_args["bargap"] = 0.20
             layout_args["bargroupgap"] = 0.05
-            # Altura suficiente para que los valores de arriba de cada barra no se corten
-            layout_args["yaxis"] = dict(range=[0, max_val * 1.18], autorange=False)
+            layout_args["yaxis"]["range"] = [0, max_val * 1.18]
+            layout_args["yaxis"]["autorange"] = False
 
-        # Caso 3: Líneas (con separación inteligente y enfoque dinámico)
+        # Caso 3: Líneas (con separación inteligente y soporte de eje dual)
         else:
             es_multilinea = len(series) > 2
 
-            todos_los_valores = []
-            for s in series:
+            # Recolectar valores por unidad para enfocar ejes
+            vals_pct = []
+            vals_sec = []
+            for i, s in enumerate(series):
                 for v in s.get("valores", []):
                     if isinstance(v, (int, float)):
-                        todos_los_valores.append(float(v))
-
-            valores_activos = [v for v in todos_los_valores if v > 0]
-            if not valores_activos:
-                valores_activos = todos_los_valores
-
-            min_activo = min(valores_activos) if valores_activos else 0.0
-            max_val = max(todos_los_valores) if todos_los_valores else 100.0
-
-            delta = max_val - min_activo
-            pad = max(delta * 0.15, 2.0)
-            rango_enfocado = [max(0.0, min_activo - pad), max_val + pad]
-            rango_completo = [0.0, max_val + pad]
-
-            conviene_enfocar = (min_activo >= 20.0 and delta < 45.0) or (len(series) >= 3 and delta < 40.0)
+                        if series_units[i] == "s":
+                            vals_sec.append(float(v))
+                        else:
+                            vals_pct.append(float(v))
 
             for i, s in enumerate(series):
                 nombre = s.get("nombre", "Métrica")
                 valores = s.get("valores", [])
                 color = colores[i % len(colores)]
+                u_serie = series_units[i]
+                text_labels = [f"<b>{v}{u_serie}</b>" for v in valores]
 
-                modo = "lines+markers" if es_multilinea else "lines+markers+text"
-                text_labels = [f"<b>{v}{unidad}</b>" for v in valores]
+                modo = "lines+markers" if (es_multilinea or es_dual) else "lines+markers+text"
+                eje_y_destino = "y2" if (es_dual and u_serie == "s") else "y"
 
                 fig.add_trace(go.Scatter(
                     x=eje_x,
                     y=valores,
                     mode=modo,
-                    name=nombre,
+                    name=f"{nombre} ({u_serie})" if (es_dual and u_serie) else nombre,
+                    yaxis=eje_y_destino,
                     line=dict(width=3, color=color),
                     marker=dict(size=7, color=color),
                     text=text_labels,
                     textposition="top center",
                     textfont=dict(size=11, color=color, family="Arial, sans-serif"),
-                    hovertemplate="<b>" + str(nombre) + "</b>: %{y}" + (str(unidad) if unidad else "") + "<extra></extra>"
+                    hovertemplate="<b>" + str(nombre) + "</b>: %{y}" + (str(u_serie) if u_serie else "") + "<extra></extra>"
                 ))
 
-                if not es_multilinea and eje_x and valores:
+                if not es_multilinea and not es_dual and eje_x and valores:
                     ultimo_val = valores[-1]
                     fig.add_annotation(
                         x=eje_x[-1],
@@ -202,8 +247,32 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
                         borderpad=3
                     )
 
-            if conviene_enfocar:
-                layout_args["yaxis"] = dict(range=rango_enfocado, autorange=False)
+            if es_dual:
+                if vals_pct:
+                    min_p = min(vals_pct)
+                    max_p = max(vals_pct)
+                    pad_p = max((max_p - min_p) * 0.2, 5.0)
+                    layout_args["yaxis"]["range"] = [max(0.0, min_p - pad_p), min(100.0, max_p + pad_p)]
+                    layout_args["yaxis"]["autorange"] = False
+                if vals_sec:
+                    min_s = min(vals_sec)
+                    max_s = max(vals_sec)
+                    pad_s = max((max_s - min_s) * 0.2, 20.0)
+                    layout_args["yaxis2"]["range"] = [max(0.0, min_s - pad_s), max_s + pad_s]
+                    layout_args["yaxis2"]["autorange"] = False
+            else:
+                todos_los_valores = vals_pct + vals_sec
+                vals_activos = [v for v in todos_los_valores if v > 0] or todos_los_valores
+                if vals_activos:
+                    min_activo = min(vals_activos)
+                    max_val = max(todos_los_valores)
+                    delta = max_val - min_activo
+                    pad = max(delta * 0.15, 2.0)
+                    rango_enfocado = [max(0.0, min_activo - pad), max_val + pad]
+                    conviene_enfocar = (min_activo >= 20.0 and delta < 45.0) or (len(series) >= 3 and delta < 40.0)
+                    if conviene_enfocar:
+                        layout_args["yaxis"]["range"] = rango_enfocado
+                        layout_args["yaxis"]["autorange"] = False
 
         # Botones interactivos en la barra superior
         updatemenus = []
@@ -216,9 +285,18 @@ def generar_figura_plotly(chart_data, incluir_updatemenus=True):
                 botones.append(dict(label="🏷️ Ver Valores", method="restyle", args=[{"mode": "lines+markers+text"}]))
                 botones.append(dict(label="👁️ Ocultar Valores", method="restyle", args=[{"mode": "lines+markers"}]))
 
-                if es_multilinea or conviene_enfocar:
-                    botones.append(dict(label="🔍 Separar Líneas", method="relayout", args=[{"yaxis.autorange": False, "yaxis.range": rango_enfocado}]))
-                    botones.append(dict(label="📏 Escala desde 0", method="relayout", args=[{"yaxis.autorange": False, "yaxis.range": rango_completo}]))
+                if not es_dual:
+                    todos_los_valores = [float(v) for s in series for v in s.get("valores", []) if isinstance(v, (int, float))]
+                    vals_activos = [v for v in todos_los_valores if v > 0] or todos_los_valores
+                    if vals_activos:
+                        min_act = min(vals_activos)
+                        max_v = max(todos_los_valores)
+                        delta = max_v - min_act
+                        pad = max(delta * 0.15, 2.0)
+                        r_enf = [max(0.0, min_act - pad), max_v + pad]
+                        r_comp = [0.0, max_v + pad]
+                        botones.append(dict(label="🔍 Separar Líneas", method="relayout", args=[{"yaxis.autorange": False, "yaxis.range": r_enf}]))
+                        botones.append(dict(label="📏 Escala desde 0", method="relayout", args=[{"yaxis.autorange": False, "yaxis.range": r_comp}]))
 
             updatemenus = [
                 dict(

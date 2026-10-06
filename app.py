@@ -239,7 +239,7 @@ with col_head:
     st.caption("Arquitectura V2 Multi-Módulo &nbsp;|&nbsp; Enrutamiento inteligente entre NPS, TMO, Transferencias y SPL")
 
 # Renderizar historial de chat
-for msg in st.session_state.messages:
+for idx, msg in enumerate(st.session_state.messages):
     avatar_ico = AVATAR_PATH if msg["role"] == "assistant" else None
     with st.chat_message(msg["role"], avatar=avatar_ico):
         if msg.get("modulos_usados"):
@@ -247,7 +247,7 @@ for msg in st.session_state.messages:
             st.markdown(f"<div style='margin-bottom: 6px;'>{badges}</div>", unsafe_allow_html=True)
         st.markdown(msg["content"])
         if msg.get("chart"):
-            dibujar_grafico(msg["chart"])
+            dibujar_grafico(msg["chart"], key=f"hist_chart_{idx}")
 
 # -------------------------------------------------------------
 # 7. CONSULTAS SUGERIDAS MULTIDOMINIO
@@ -371,7 +371,7 @@ DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
                         st.markdown(f"<div style='margin-bottom: 6px;'>{badges}</div>", unsafe_allow_html=True)
                         st.markdown(respuesta_texto)
                         if chart_data:
-                            dibujar_grafico(chart_data)
+                            dibujar_grafico(chart_data, key=f"live_chart_{len(st.session_state.messages)}")
 
                         # Persistir en historial
                         st.session_state.messages.append({

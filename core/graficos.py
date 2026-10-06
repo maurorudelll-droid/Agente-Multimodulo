@@ -1,4 +1,5 @@
 import re
+import uuid
 import streamlit as st
 import pandas as pd
 
@@ -51,10 +52,13 @@ def ordenar_cronologico(eje_x, series):
 
     return nuevo_eje_x, nuevas_series
 
-def dibujar_grafico(chart_data):
+def dibujar_grafico(chart_data, key=None):
     """Renderiza gráficos Plotly estandarizados con valores impresos fijos y leyendas claras."""
     if not chart_data or not isinstance(chart_data, dict):
         return
+
+    if not key:
+        key = f"plotly_chart_{uuid.uuid4().hex[:10]}"
 
     try:
         tipo = str(chart_data.get("tipo", "linea")).lower()
@@ -153,7 +157,7 @@ def dibujar_grafico(chart_data):
                 ),
                 margin=dict(l=45, r=130, t=70, b=90)
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key=key)
         else:
             df_chart = pd.DataFrame(index=eje_x)
             for s in series:

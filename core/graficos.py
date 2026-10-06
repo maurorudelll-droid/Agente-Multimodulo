@@ -134,13 +134,9 @@ def dibujar_grafico(chart_data, key=None):
                     valores = s.get("valores", [])
                     color = colores[i % len(colores)]
 
-                    # Si hay varias líneas, no imprimir etiquetas estáticas sobre cada punto para evitar colisiones
-                    if es_multilinea:
-                        modo = "lines+markers"
-                        text_labels = None
-                    else:
-                        modo = "lines+markers+text"
-                        text_labels = [f"<b>{v}{unidad}</b>" for v in valores]
+                    # Siempre adjuntar las etiquetas de texto para que el usuario pueda alternarlas con los botones
+                    modo = "lines+markers" if es_multilinea else "lines+markers+text"
+                    text_labels = [f"<b>{v}{unidad}</b>" for v in valores]
 
                     fig.add_trace(go.Scatter(
                         x=eje_x,
@@ -171,34 +167,61 @@ def dibujar_grafico(chart_data, key=None):
                             borderpad=3
                         )
 
-            # Botones interactivos para separar/enfocar líneas en el gráfico
+            # Botones interactivos para ver/ocultar valores y separar/enfocar líneas en el gráfico
             updatemenus = []
             if tipo not in ["torta", "pie", "circular", "dona", "donut"]:
+                botones = []
+
+                # Controles para mostrar u ocultar valores en cada punto
+                if tipo in ["barra", "barras", "bar"]:
+                    botones.append(dict(
+                        label="🏷️ Ver Valores",
+                        method="restyle",
+                        args=[{"textposition": "outside"}]
+                    ))
+                    botones.append(dict(
+                        label="👁️ Ocultar Valores",
+                        method="restyle",
+                        args=[{"textposition": "none"}]
+                    ))
+                else:
+                    botones.append(dict(
+                        label="🏷️ Ver Valores",
+                        method="restyle",
+                        args=[{"mode": "lines+markers+text"}]
+                    ))
+                    botones.append(dict(
+                        label="👁️ Ocultar Valores",
+                        method="restyle",
+                        args=[{"mode": "lines+markers"}]
+                    ))
+
+                # Controles para separar líneas / enfocar eje Y
                 if es_multilinea or conviene_enfocar:
-                    updatemenus = [
-                        dict(
-                            type="buttons",
-                            direction="left",
-                            x=0.98,
-                            y=1.16,
-                            xanchor="right",
-                            yanchor="top",
-                            pad=dict(r=0, t=0, b=0),
-                            showactive=True,
-                            buttons=[
-                                dict(
-                                    label="🔍 Separar / Enfocar Líneas",
-                                    method="relayout",
-                                    args=[{"yaxis.autorange": False, "yaxis.range": rango_enfocado}]
-                                ),
-                                dict(
-                                    label="📏 Escala Completa (desde 0)",
-                                    method="relayout",
-                                    args=[{"yaxis.autorange": False, "yaxis.range": rango_completo}]
-                                )
-                            ]
-                        )
-                    ]
+                    botones.append(dict(
+                        label="🔍 Separar Líneas",
+                        method="relayout",
+                        args=[{"yaxis.autorange": False, "yaxis.range": rango_enfocado}]
+                    ))
+                    botones.append(dict(
+                        label="📏 Escala desde 0",
+                        method="relayout",
+                        args=[{"yaxis.autorange": False, "yaxis.range": rango_completo}]
+                    ))
+
+                updatemenus = [
+                    dict(
+                        type="buttons",
+                        direction="left",
+                        x=1.0,
+                        y=1.16,
+                        xanchor="right",
+                        yanchor="top",
+                        pad=dict(r=0, t=0, b=0),
+                        showactive=True,
+                        buttons=botones
+                    )
+                ]
 
             layout_args = dict(
                 title=dict(text=f"<b>📈 {titulo}</b>", x=0.02, xanchor="left", font=dict(size=17, color="#0f172a")),

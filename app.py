@@ -75,6 +75,7 @@ from core.database_redis import (
     get_presencia_global
 )
 from core.graficos import dibujar_grafico
+from core.exportador_pdf import render_boton_descarga_pdf
 from core.motor_gemini import (
     obtener_cliente_gemini,
     obtener_frase_spinner,
@@ -268,7 +269,7 @@ def es_tabla_compacta(texto_bloque1):
                 return len(cols) <= 4
     return True
 
-def render_contenido_asistente(content, chart=None, key_chart=None):
+def render_contenido_asistente(content, chart=None, key_chart=None, modulos_usados=None, key_pdf=None):
     """
     Renderiza la respuesta del asistente de forma adaptable:
     - Si la tabla de datos tiene espacio en blanco lateral (<= 4 columnas):
@@ -276,6 +277,7 @@ def render_contenido_asistente(content, chart=None, key_chart=None):
     - Si la tabla es ancha por cantidad de datos/columnas (> 4 columnas):
       Ubica el BLOQUE 2 y 3 debajo a ancho completo.
     - Gráfico Plotly interactivo por debajo a ancho completo.
+    - Botón de descarga ejecutiva en PDF corporativo oficial.
     """
     if not content:
         return
@@ -300,6 +302,16 @@ def render_contenido_asistente(content, chart=None, key_chart=None):
     if chart:
         dibujar_grafico(chart, key=key_chart)
 
+    # Botón corporativo para exportar y descargar el reporte oficial en PDF
+    if "BLOQUE" in content or chart:
+        render_boton_descarga_pdf(
+            content=content,
+            chart=chart,
+            usuario=st.session_state.get("user_display", "Usuario"),
+            modulos_usados=modulos_usados,
+            key=key_pdf or f"btn_pdf_{key_chart or 'live'}"
+        )
+
 # Renderizar historial de chat
 for idx, msg in enumerate(st.session_state.messages):
     avatar_ico = AVATAR_PATH if msg["role"] == "assistant" else None
@@ -308,7 +320,13 @@ for idx, msg in enumerate(st.session_state.messages):
             badges = "".join([f"<span class='module-badge'>{m}</span>" for m in msg["modulos_usados"]])
             st.markdown(f"<div style='margin-bottom: 6px;'>{badges}</div>", unsafe_allow_html=True)
         if msg["role"] == "assistant":
-            render_contenido_asistente(msg["content"], chart=msg.get("chart"), key_chart=f"hist_chart_{idx}")
+            render_contenido_asistente(
+                msg["content"],
+                chart=msg.get("chart"),
+                key_chart=f"hist_chart_{idx}",
+                modulos_usados=msg.get("modulos_usados"),
+                key_pdf=f"hist_pdf_{idx}"
+            )
         else:
             st.markdown(msg["content"])
 
@@ -484,7 +502,9 @@ DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
             render_contenido_asistente(
                 respuesta_texto,
                 chart=chart_data,
-                key_chart=f"live_chart_{len(st.session_state.messages)}"
+                key_chart=f"live_chart_{len(st.session_state.messages)}",
+                modulos_usados=nombres_modulos,
+                key_pdf=f"live_pdf_{len(st.session_state.messages)}"
             )
 
             # Persistir en historial

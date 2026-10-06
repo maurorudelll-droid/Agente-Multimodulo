@@ -52,13 +52,13 @@ def ordenar_cronologico(eje_x, series):
 
     return nuevo_eje_x, nuevas_series
 
-def dibujar_grafico(chart_data, key=None):
-    """Renderiza gráficos Plotly estandarizados con valores impresos fijos y leyendas claras."""
-    if not chart_data or not isinstance(chart_data, dict):
-        return
-
-    if not key:
-        key = f"plotly_chart_{uuid.uuid4().hex[:10]}"
+def generar_figura_plotly(chart_data, incluir_updatemenus=True):
+    """
+    Construye y retorna un objeto go.Figure estandarizado a partir de chart_data.
+    Reutilizable tanto para renderizado en pantalla como para exportación estática a PDF/PNG.
+    """
+    if not chart_data or not isinstance(chart_data, dict) or not HAS_PLOTLY:
+        return None
 
     try:
         tipo = str(chart_data.get("tipo", "linea")).lower()
@@ -72,196 +72,185 @@ def dibujar_grafico(chart_data, key=None):
             eje_x, series = ordenar_cronologico(eje_x, series)
 
         colores = ['#2563eb', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6']
+        fig = go.Figure()
 
-        if HAS_PLOTLY:
-            fig = go.Figure()
-
-            # Caso 1: Torta / Donut
-            if tipo in ["torta", "pie", "circular", "dona", "donut"]:
-                valores_torta = series[0].get("valores", []) if series else []
-                fig.add_trace(go.Pie(
-                    labels=eje_x,
-                    values=valores_torta,
-                    hole=0.35,
-                    textinfo="label+value+percent",
-                    hovertemplate="%{label}: <b>%{value}" + (f"{unidad}" if unidad else "") + "</b> (%{percent})<extra></extra>"
+        # Caso 1: Torta / Donut
+        if tipo in ["torta", "pie", "circular", "dona", "donut"]:
+            valores_torta = series[0].get("valores", []) if series else []
+            fig.add_trace(go.Pie(
+                labels=eje_x,
+                values=valores_torta,
+                hole=0.35,
+                textinfo="label+value+percent",
+                hovertemplate="%{label}: <b>%{value}" + (f"{unidad}" if unidad else "") + "</b> (%{percent})<extra></extra>"
+            ))
+        # Caso 2: Barras
+        elif tipo in ["barra", "barras", "bar"]:
+            for i, s in enumerate(series):
+                nombre = s.get("nombre", "Métrica")
+                valores = s.get("valores", [])
+                color = colores[i % len(colores)]
+                fig.add_trace(go.Bar(
+                    x=eje_x,
+                    y=valores,
+                    name=nombre,
+                    text=[f"<b>{v}{unidad}</b>" for v in valores],
+                    textposition="outside",
+                    marker_color=color,
+                    hovertemplate="<b>" + str(nombre) + "</b>: %{y}" + (str(unidad) if unidad else "") + "<extra></extra>"
                 ))
-            # Caso 2: Barras
-            elif tipo in ["barra", "barras", "bar"]:
-                for i, s in enumerate(series):
-                    nombre = s.get("nombre", "Métrica")
-                    valores = s.get("valores", [])
-                    color = colores[i % len(colores)]
-                    fig.add_trace(go.Bar(
-                        x=eje_x,
-                        y=valores,
-                        name=nombre,
-                        text=[f"<b>{v}{unidad}</b>" for v in valores],
-                        textposition="outside",
-                        marker_color=color,
-                        hovertemplate="<b>" + str(nombre) + "</b>: %{y}" + (str(unidad) if unidad else "") + "<extra></extra>"
-                    ))
-                fig.update_layout(barmode="group")
-            # Caso 3: Líneas (con separación inteligente y enfoque dinámico)
-            else:
-                es_multilinea = len(series) > 2
-
-                # Recolectar valores para análisis de rango
-                todos_los_valores = []
-                for s in series:
-                    for v in s.get("valores", []):
-                        if isinstance(v, (int, float)):
-                            todos_los_valores.append(float(v))
-
-                valores_activos = [v for v in todos_los_valores if v > 0]
-                if not valores_activos:
-                    valores_activos = todos_los_valores
-
-                min_activo = min(valores_activos) if valores_activos else 0.0
-                max_val = max(todos_los_valores) if todos_los_valores else 100.0
-
-                # Calcular rangos: enfocado (separa líneas) vs completo (desde 0)
-                delta = max_val - min_activo
-                pad = max(delta * 0.15, 2.0)
-                rango_enfocado = [max(0.0, min_activo - pad), max_val + pad]
-                rango_completo = [0.0, max_val + pad]
-
-                # Conviene enfocar por defecto si los datos están agrupados arriba
-                conviene_enfocar = (min_activo >= 20.0 and delta < 45.0) or (len(series) >= 3 and delta < 40.0)
-
-                for i, s in enumerate(series):
-                    nombre = s.get("nombre", "Métrica")
-                    valores = s.get("valores", [])
-                    color = colores[i % len(colores)]
-
-                    # Siempre adjuntar las etiquetas de texto para que el usuario pueda alternarlas con los botones
-                    modo = "lines+markers" if es_multilinea else "lines+markers+text"
-                    text_labels = [f"<b>{v}{unidad}</b>" for v in valores]
-
-                    fig.add_trace(go.Scatter(
-                        x=eje_x,
-                        y=valores,
-                        mode=modo,
-                        name=nombre,
-                        line=dict(width=3, color=color),
-                        marker=dict(size=7, color=color),
-                        text=text_labels,
-                        textposition="top center",
-                        textfont=dict(size=11, color=color, family="Arial, sans-serif"),
-                        hovertemplate="<b>" + str(nombre) + "</b>: %{y}" + (str(unidad) if unidad else "") + "<extra></extra>"
-                    ))
-
-                    # Si son pocas líneas (<=2), agregar rótulo final de línea
-                    if not es_multilinea and eje_x and valores:
-                        ultimo_val = valores[-1]
-                        fig.add_annotation(
-                            x=eje_x[-1],
-                            y=ultimo_val,
-                            text=f" <b>◀ {nombre}</b>",
-                            showarrow=False,
-                            xanchor="left",
-                            font=dict(size=12, color=color, family="Arial, sans-serif"),
-                            bgcolor="rgba(255, 255, 255, 0.85)",
-                            bordercolor=color,
-                            borderwidth=1,
-                            borderpad=3
-                        )
-
-            # Botones interactivos para ver/ocultar valores y separar/enfocar líneas en el gráfico
-            updatemenus = []
-            if tipo not in ["torta", "pie", "circular", "dona", "donut"]:
-                botones = []
-
-                # Controles para mostrar u ocultar valores en cada punto
-                if tipo in ["barra", "barras", "bar"]:
-                    botones.append(dict(
-                        label="🏷️ Ver Valores",
-                        method="restyle",
-                        args=[{"textposition": "outside"}]
-                    ))
-                    botones.append(dict(
-                        label="👁️ Ocultar Valores",
-                        method="restyle",
-                        args=[{"textposition": "none"}]
-                    ))
-                else:
-                    botones.append(dict(
-                        label="🏷️ Ver Valores",
-                        method="restyle",
-                        args=[{"mode": "lines+markers+text"}]
-                    ))
-                    botones.append(dict(
-                        label="👁️ Ocultar Valores",
-                        method="restyle",
-                        args=[{"mode": "lines+markers"}]
-                    ))
-
-                # Controles para separar líneas / enfocar eje Y
-                if es_multilinea or conviene_enfocar:
-                    botones.append(dict(
-                        label="🔍 Separar Líneas",
-                        method="relayout",
-                        args=[{"yaxis.autorange": False, "yaxis.range": rango_enfocado}]
-                    ))
-                    botones.append(dict(
-                        label="📏 Escala desde 0",
-                        method="relayout",
-                        args=[{"yaxis.autorange": False, "yaxis.range": rango_completo}]
-                    ))
-
-                updatemenus = [
-                    dict(
-                        type="buttons",
-                        direction="left",
-                        x=1.0,
-                        y=1.16,
-                        xanchor="right",
-                        yanchor="top",
-                        pad=dict(r=0, t=0, b=0),
-                        showactive=True,
-                        buttons=botones
-                    )
-                ]
-
-            layout_args = dict(
-                title=dict(text=f"<b>📈 {titulo}</b>", x=0.02, xanchor="left", font=dict(size=17, color="#0f172a")),
-                xaxis_title="<b>Periodo / Segmento</b>",
-                yaxis_title=f"<b>Valor ({unidad})</b>" if unidad else "<b>Valor</b>",
-                template="plotly_white",
-                height=480,
-                hovermode="x unified" if len(series) > 1 else "closest",
-                legend=dict(
-                    orientation="h",
-                    yanchor="top",
-                    y=-0.22,
-                    xanchor="center",
-                    x=0.5,
-                    font=dict(size=12, color="#1e293b"),
-                    bgcolor="rgba(248, 250, 252, 0.9)",
-                    bordercolor="#cbd5e1",
-                    borderwidth=1,
-                    itemclick="toggle",
-                    itemdoubleclick="toggleothers"
-                ),
-                margin=dict(l=45, r=60 if (tipo not in ["torta", "pie", "circular", "dona", "donut"] and es_multilinea) else 130, t=75, b=90)
-            )
-
-            if updatemenus:
-                layout_args["updatemenus"] = updatemenus
-
-            if tipo not in ["torta", "pie", "circular", "dona", "donut"] and conviene_enfocar:
-                layout_args["yaxis"] = dict(range=rango_enfocado, autorange=False)
-
-            fig.update_layout(**layout_args)
-            st.plotly_chart(fig, use_container_width=True, key=key)
+            fig.update_layout(barmode="group")
+        # Caso 3: Líneas (con separación inteligente y enfoque dinámico)
         else:
-            df_chart = pd.DataFrame(index=eje_x)
+            es_multilinea = len(series) > 2
+
+            # Recolectar valores para análisis de rango
+            todos_los_valores = []
             for s in series:
-                df_chart[s.get("nombre", "Serie")] = s.get("valores", [])
-            st.markdown(f"**📈 {titulo}**")
-            if "barra" in tipo:
-                st.bar_chart(df_chart)
+                for v in s.get("valores", []):
+                    if isinstance(v, (int, float)):
+                        todos_los_valores.append(float(v))
+
+            valores_activos = [v for v in todos_los_valores if v > 0]
+            if not valores_activos:
+                valores_activos = todos_los_valores
+
+            min_activo = min(valores_activos) if valores_activos else 0.0
+            max_val = max(todos_los_valores) if todos_los_valores else 100.0
+
+            delta = max_val - min_activo
+            pad = max(delta * 0.15, 2.0)
+            rango_enfocado = [max(0.0, min_activo - pad), max_val + pad]
+            rango_completo = [0.0, max_val + pad]
+
+            conviene_enfocar = (min_activo >= 20.0 and delta < 45.0) or (len(series) >= 3 and delta < 40.0)
+
+            for i, s in enumerate(series):
+                nombre = s.get("nombre", "Métrica")
+                valores = s.get("valores", [])
+                color = colores[i % len(colores)]
+
+                modo = "lines+markers" if es_multilinea else "lines+markers+text"
+                text_labels = [f"<b>{v}{unidad}</b>" for v in valores]
+
+                fig.add_trace(go.Scatter(
+                    x=eje_x,
+                    y=valores,
+                    mode=modo,
+                    name=nombre,
+                    line=dict(width=3, color=color),
+                    marker=dict(size=7, color=color),
+                    text=text_labels,
+                    textposition="top center",
+                    textfont=dict(size=11, color=color, family="Arial, sans-serif"),
+                    hovertemplate="<b>" + str(nombre) + "</b>: %{y}" + (str(unidad) if unidad else "") + "<extra></extra>"
+                ))
+
+                if not es_multilinea and eje_x and valores:
+                    ultimo_val = valores[-1]
+                    fig.add_annotation(
+                        x=eje_x[-1],
+                        y=ultimo_val,
+                        text=f" <b>◀ {nombre}</b>",
+                        showarrow=False,
+                        xanchor="left",
+                        font=dict(size=12, color=color, family="Arial, sans-serif"),
+                        bgcolor="rgba(255, 255, 255, 0.85)",
+                        bordercolor=color,
+                        borderwidth=1,
+                        borderpad=3
+                    )
+
+        updatemenus = []
+        if incluir_updatemenus and tipo not in ["torta", "pie", "circular", "dona", "donut"]:
+            botones = []
+            if tipo in ["barra", "barras", "bar"]:
+                botones.append(dict(label="🏷️ Ver Valores", method="restyle", args=[{"textposition": "outside"}]))
+                botones.append(dict(label="👁️ Ocultar Valores", method="restyle", args=[{"textposition": "none"}]))
             else:
-                st.line_chart(df_chart)
+                botones.append(dict(label="🏷️ Ver Valores", method="restyle", args=[{"mode": "lines+markers+text"}]))
+                botones.append(dict(label="👁️ Ocultar Valores", method="restyle", args=[{"mode": "lines+markers"}]))
+
+            if es_multilinea or conviene_enfocar:
+                botones.append(dict(label="🔍 Separar Líneas", method="relayout", args=[{"yaxis.autorange": False, "yaxis.range": rango_enfocado}]))
+                botones.append(dict(label="📏 Escala desde 0", method="relayout", args=[{"yaxis.autorange": False, "yaxis.range": rango_completo}]))
+
+            updatemenus = [
+                dict(
+                    type="buttons",
+                    direction="left",
+                    x=1.0,
+                    y=1.16,
+                    xanchor="right",
+                    yanchor="top",
+                    pad=dict(r=0, t=0, b=0),
+                    showactive=True,
+                    buttons=botones
+                )
+            ]
+
+        layout_args = dict(
+            title=dict(text=f"<b>📈 {titulo}</b>", x=0.02, xanchor="left", font=dict(size=17, color="#0f172a")),
+            xaxis_title="<b>Periodo / Segmento</b>",
+            yaxis_title=f"<b>Valor ({unidad})</b>" if unidad else "<b>Valor</b>",
+            template="plotly_white",
+            height=480,
+            hovermode="x unified" if len(series) > 1 else "closest",
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.22,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=12, color="#1e293b"),
+                bgcolor="rgba(248, 250, 252, 0.9)",
+                bordercolor="#cbd5e1",
+                borderwidth=1,
+                itemclick="toggle",
+                itemdoubleclick="toggleothers"
+            ),
+            margin=dict(l=45, r=60 if (tipo not in ["torta", "pie", "circular", "dona", "donut"] and len(series) > 2) else 130, t=75, b=90)
+        )
+
+        if updatemenus:
+            layout_args["updatemenus"] = updatemenus
+
+        if tipo not in ["torta", "pie", "circular", "dona", "donut"] and conviene_enfocar:
+            layout_args["yaxis"] = dict(range=rango_enfocado, autorange=False)
+
+        fig.update_layout(**layout_args)
+        return fig
     except Exception as e:
-        st.warning(f"No se pudo graficar automáticamente: {e}")
+        print(f"Error generando figura Plotly: {e}")
+        return None
+
+def dibujar_grafico(chart_data, key=None):
+    """Renderiza gráficos Plotly interactivos en Streamlit."""
+    if not chart_data or not isinstance(chart_data, dict):
+        return
+
+    if not key:
+        key = f"plotly_chart_{uuid.uuid4().hex[:10]}"
+
+    if HAS_PLOTLY:
+        fig = generar_figura_plotly(chart_data, incluir_updatemenus=True)
+        if fig is not None:
+            st.plotly_chart(fig, use_container_width=True, key=key)
+            return
+
+    # Fallback básico si falla Plotly
+    try:
+        eje_x = chart_data.get("eje_x", chart_data.get("x", []))
+        series = chart_data.get("series", [])
+        titulo = chart_data.get("titulo", "Visualización Operativa")
+        tipo = str(chart_data.get("tipo", "linea")).lower()
+        df_chart = pd.DataFrame(index=eje_x)
+        for s in series:
+            df_chart[s.get("nombre", "Serie")] = s.get("valores", [])
+        st.markdown(f"**📈 {titulo}**")
+        if "barra" in tipo:
+            st.bar_chart(df_chart)
+        else:
+            st.line_chart(df_chart)
+    except Exception as e:
+        st.warning(f"No se pudo graficar: {e}")

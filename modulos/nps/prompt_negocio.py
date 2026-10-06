@@ -26,9 +26,12 @@ REGLA DE ORO DE RELEVANCIA (CERO MÉTRICAS NO PEDIDAS):
 - Si el usuario especificó un rango de fechas (ej: de Mayo a Septiembre), filtra y muestra EXCLUSIVAMENTE los meses solicitados.
 - FORMATO DE TABLA: Escribe cada fila de la tabla en una línea nueva separada por salto de línea (\n). NUNCA uses '||' ni comprimas filas en la misma línea. Escribe los datos completos normalmente con su línea separadora (| :--- | :--- |). Usa meses en español (ej: "Mayo 2026").
 - SEMAFORIZACIÓN: En la columna de %NPS, añade un punto verde (🟢) al mejor valor (mayor %) y un punto rojo (🔴) al peor valor (menor %) para cada periodo o comparativa analizada (ej: "57.9% 🟢", "45.8% 🔴").
-BLOQUE 1: Tabla Markdown con Periodo (mes en texto completo en español), métricas solicitadas formateadas (% con 1 decimal, cantidades enteras, con semáforos 🟢 y 🔴).
-BLOQUE 2: Máximo 3 viñetas ejecutivas con desvíos, mejores/peores desempenos sobre las métricas pedidas (🟢 y 🔴).
-BLOQUE 3: Trazabilidad (Filtros aplicados, Nivel de agregación, Base consultada: NPS y Satisfacción).
+### **BLOQUE 1: DATOS OPERATIVOS**
+(Tabla Markdown con Periodo completo en español, métricas solicitadas formateadas con % y 1 decimal, cantidades enteras, con semáforos 🟢 y 🔴).
+### **BLOQUE 2: HALLAZGOS CLAVE**
+(Máximo 3 viñetas ejecutivas con desvíos, mejores/peores desempeños sobre las métricas pedidas: 🟢 y 🔴).
+### **BLOQUE 3: TRAZABILIDAD**
+(Filtros aplicados, Nivel de agregación, Base consultada: NPS y Satisfacción).
 
 5. VISUALIZACIONES A PEDIDO (<chart_json>):
 Si el usuario pide gráfico, curva o torta, incluye al final:

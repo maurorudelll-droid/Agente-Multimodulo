@@ -1,4 +1,5 @@
 import os
+import re
 import streamlit as st
 from datetime import datetime
 
@@ -238,6 +239,32 @@ with col_head:
     st.title("Agente Master de Inteligencia Operativa")
     st.caption("Arquitectura V2 Multi-Módulo &nbsp;|&nbsp; Enrutamiento inteligente entre NPS, TMO, Transferencias y SPL")
 
+def render_contenido_asistente(content, chart=None, key_chart=None):
+    """
+    Renderiza la respuesta del asistente en diseño ejecutivo compacto:
+    - Columna Izquierda (55%): BLOQUE 1 (Tabla con datos operativos)
+    - Columna Derecha (45%): BLOQUE 2 (Hallazgos Clave) y BLOQUE 3 (Trazabilidad)
+    - Abajo (Ancho Completo): Gráfico Plotly interactivo si existe.
+    """
+    if not content:
+        return
+    match_b2 = re.search(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*2', content)
+    if match_b2:
+        idx_b2 = match_b2.start()
+        bloque_izq = content[:idx_b2].strip()
+        bloque_der = content[idx_b2:].strip()
+        
+        c_izq, c_der = st.columns([0.55, 0.45], gap="medium")
+        with c_izq:
+            st.markdown(bloque_izq)
+        with c_der:
+            st.markdown(bloque_der)
+    else:
+        st.markdown(content)
+
+    if chart:
+        dibujar_grafico(chart, key=key_chart)
+
 # Renderizar historial de chat
 for idx, msg in enumerate(st.session_state.messages):
     avatar_ico = AVATAR_PATH if msg["role"] == "assistant" else None
@@ -245,9 +272,10 @@ for idx, msg in enumerate(st.session_state.messages):
         if msg.get("modulos_usados"):
             badges = "".join([f"<span class='module-badge'>{m}</span>" for m in msg["modulos_usados"]])
             st.markdown(f"<div style='margin-bottom: 6px;'>{badges}</div>", unsafe_allow_html=True)
-        st.markdown(msg["content"])
-        if msg.get("chart"):
-            dibujar_grafico(msg["chart"], key=f"hist_chart_{idx}")
+        if msg["role"] == "assistant":
+            render_contenido_asistente(msg["content"], chart=msg.get("chart"), key_chart=f"hist_chart_{idx}")
+        else:
+            st.markdown(msg["content"])
 
 # -------------------------------------------------------------
 # 7. CONSULTAS SUGERIDAS MULTIDOMINIO
@@ -343,10 +371,15 @@ REGLAS GENERALES:
      * %NPS y Satisfacción: Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
      * %SPL y Resolución: Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
 6. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
-7. Estructura rigurosamente la respuesta en 3 bloques:
-   BLOQUE 1: Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados (% con 1 decimal, tiempos enteros con 's', periodo en español, y semáforos 🟢 / 🔴 en los valores extremos).
-   BLOQUE 2: Máximo 3 viñetas ejecutivas ultra-cortas con desvíos y hallazgos clave sobre los datos solicitados (🟢 y 🔴).
-   BLOQUE 3: Trazabilidad (Filtros aplicados, Nivel de agregación, Bases consultadas: {', '.join(nombres_modulos)}).
+7. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en mayúscula y negrita:
+   ### **BLOQUE 1: DATOS OPERATIVOS**
+   (Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados: % con 1 decimal, tiempos enteros con 's', periodo en español, y semáforos 🟢 / 🔴 en los valores extremos. Cada fila en una línea nueva separada por \n).
+
+   ### **BLOQUE 2: HALLAZGOS CLAVE**
+   (Máximo 3 viñetas ejecutivas ultra-cortas con desvíos y hallazgos clave sobre los datos solicitados: 🟢 mejor y 🔴 peor).
+
+   ### **BLOQUE 3: TRAZABILIDAD**
+   (Filtros aplicados, Nivel de agregación, Bases consultadas: {', '.join(nombres_modulos)}).
 8. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
 
 DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
@@ -369,9 +402,11 @@ DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
                         # Mostrar insignias de las bases consultadas
                         badges = "".join([f"<span class='module-badge'>{m}</span>" for m in nombres_modulos])
                         st.markdown(f"<div style='margin-bottom: 6px;'>{badges}</div>", unsafe_allow_html=True)
-                        st.markdown(respuesta_texto)
-                        if chart_data:
-                            dibujar_grafico(chart_data, key=f"live_chart_{len(st.session_state.messages)}")
+                        render_contenido_asistente(
+                            respuesta_texto,
+                            chart=chart_data,
+                            key_chart=f"live_chart_{len(st.session_state.messages)}"
+                        )
 
                         # Persistir en historial
                         st.session_state.messages.append({

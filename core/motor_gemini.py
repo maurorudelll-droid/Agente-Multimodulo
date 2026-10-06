@@ -50,20 +50,36 @@ MAPA_MESES_STR = {
     "2026-10": "Octubre 2026", "2026-11": "Noviembre 2026", "2026-12": "Diciembre 2026"
 }
 
+def formatear_titulos_bloques(texto):
+    """Normaliza los encabezados de los bloques a mayúsculas y negrita."""
+    if not texto:
+        return texto
+    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*1[^\n|*]*', '### **BLOQUE 1: DATOS OPERATIVOS**', texto)
+    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*2[^\n|*]*', '### **BLOQUE 2: HALLAZGOS CLAVE**', texto)
+    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*3[^\n|*]*', '### **BLOQUE 3: TRAZABILIDAD**', texto)
+    return texto
+
 def normalizar_y_suprimir_tablas(texto):
     """
     Normaliza y formatea tablas Markdown:
-    1. Asegura saltos de línea estrictos (\n) antes y entre filas.
-    2. Convierte códigos '2026-05' a meses en español ('Mayo 2026').
-    3. Suprime valores consecutivos repetidos en columnas jerárquicas (Periodo, PCRC, Proveedor).
-    4. Garantiza línea divisoria de encabezado para correcto renderizado en Streamlit.
+    1. Asegura títulos de bloques en mayúsculas y negrita.
+    2. Asegura saltos de línea estrictos (\n) antes y entre filas.
+    3. Convierte códigos '2026-05' a meses en español ('Mayo 2026').
+    4. Suprime valores consecutivos repetidos en columnas jerárquicas (Periodo, PCRC, Proveedor).
+    5. Agrega semáforos 🟢 y 🔴 a cada periodo analizado.
     """
-    if not texto or "|" not in texto:
+    if not texto:
+        return texto
+
+    # Paso 0: Normalizar títulos de bloque en mayúscula y negrita
+    texto = formatear_titulos_bloques(texto)
+
+    if "|" not in texto:
         return texto
 
     # Paso 1: Separar títulos de bloque si están pegados a la tabla
     texto = re.sub(r'([^\n]*BLOQUE[^\n|]*)\s*\|', r'\1\n\n|', texto)
-    texto = re.sub(r'([^\n]*Tabla Markdown[^\n|]*)\s*\|', r'\1\n\n|', texto)
+    texto = re.sub(r'([^\n]*DATOS OPERATIVOS[^\n|]*)\s*\|', r'\1\n\n|', texto)
 
     # Paso 2: Separar filas si fueron comprimidas con '||' en la misma línea
     lineas_raw = texto.split("\n")

@@ -43,62 +43,108 @@ def obtener_frase_spinner():
     """Retorna una frase aleatoria de Los Simpson."""
     return random.choice(FRASES_SIMPSON)
 
-def suprimir_duplicados_markdown(texto):
+MAPA_MESES_STR = {
+    "2026-01": "Enero 2026", "2026-02": "Febrero 2026", "2026-03": "Marzo 2026",
+    "2026-04": "Abril 2026", "2026-05": "Mayo 2026", "2026-06": "Junio 2026",
+    "2026-07": "Julio 2026", "2026-08": "Agosto 2026", "2026-09": "Septiembre 2026",
+    "2026-10": "Octubre 2026", "2026-11": "Noviembre 2026", "2026-12": "Diciembre 2026"
+}
+
+def normalizar_y_suprimir_tablas(texto):
     """
-    Suprime valores consecutivos repetidos en columnas de jerarquía
-    (Periodo, PCRC, Proveedor, Campaña) dejando las celdas en blanco
-    para una visualización limpia e idéntica a la vista ejecutiva.
+    Normaliza y formatea tablas Markdown:
+    1. Asegura saltos de línea estrictos (\n) antes y entre filas.
+    2. Convierte códigos '2026-05' a meses en español ('Mayo 2026').
+    3. Suprime valores consecutivos repetidos en columnas jerárquicas (Periodo, PCRC, Proveedor).
+    4. Garantiza línea divisoria de encabezado para correcto renderizado en Streamlit.
     """
     if not texto or "|" not in texto:
         return texto
 
-    lineas = texto.split("\n")
+    # Paso 1: Separar títulos de bloque si están pegados a la tabla
+    texto = re.sub(r'([^\n]*BLOQUE[^\n|]*)\s*\|', r'\1\n\n|', texto)
+    texto = re.sub(r'([^\n]*Tabla Markdown[^\n|]*)\s*\|', r'\1\n\n|', texto)
+
+    # Paso 2: Separar filas si fueron comprimidas con '||' en la misma línea
+    lineas_raw = texto.split("\n")
+    lineas_expandidas = []
+    for l in lineas_raw:
+        strip = l.strip()
+        if strip.count("|") >= 6 and "||" in strip:
+            subfilas = [sf.strip() for sf in re.split(r'\|{2,}', strip) if sf.strip()]
+            for sf in subfilas:
+                if not sf.startswith("|"):
+                    sf = "| " + sf
+                if not sf.endswith("|"):
+                    sf = sf + " |"
+                lineas_expandidas.append(sf)
+        else:
+            lineas_expandidas.append(l)
+
+    # Paso 3: Procesar filas de tabla
     en_tabla = False
     headers = []
     prev_cols = []
-    nuevas_lineas = []
+    lineas_finales = []
     cols_agrupables = ["periodo", "pcrc", "proveedor", "campaña", "campana", "segmento", "canal"]
 
-    for linea in lineas:
+    for i, linea in enumerate(lineas_expandidas):
         strip = linea.strip()
         if strip.startswith("|") and strip.endswith("|"):
             partes = [c.strip() for c in strip.split("|")[1:-1]]
-            # Separador de tabla |:---|:---|
-            if all(set(c) <= set(":- ") for c in partes):
-                nuevas_lineas.append(linea)
+            # Fila separadora (|:---|:---|)
+            if all(set(c) <= set(":- ") for c in partes) and len(partes) > 0:
+                lineas_finales.append(linea)
                 continue
 
             if not en_tabla:
                 en_tabla = True
                 headers = [re.sub(r'[*_]', '', h).strip().lower() for h in partes]
                 prev_cols = [""] * len(partes)
-                nuevas_lineas.append(linea)
+                lineas_finales.append("\n" + linea)
+                # Inyectar separador si no existe
+                if i + 1 < len(lineas_expandidas):
+                    sig = lineas_expandidas[i+1].strip()
+                    sig_p = [c.strip() for c in sig.split("|")[1:-1]]
+                    if not (sig.startswith("|") and sig.endswith("|") and all(set(c) <= set(":- ") for c in sig_p)):
+                        lineas_finales.append("| " + " | ".join([":---"] * len(partes)) + " |")
+                else:
+                    lineas_finales.append("| " + " | ".join([":---"] * len(partes)) + " |")
                 continue
 
             # Fila de datos
             nuevas_partes = list(partes)
-            for idx in range(min(3, len(partes) - 1)):
+            while len(nuevas_partes) < len(headers):
+                nuevas_partes.append("")
+
+            # Normalizar mes si viene como 2026-XX
+            if len(nuevas_partes) > 0 and nuevas_partes[0] in MAPA_MESES_STR:
+                nuevas_partes[0] = MAPA_MESES_STR[nuevas_partes[0]]
+
+            # Suprimir repetidos en las primeras columnas dimensionales
+            for idx in range(min(3, len(nuevas_partes) - 1)):
                 nombre_h = headers[idx] if idx < len(headers) else ""
                 if any(ca in nombre_h for ca in cols_agrupables):
-                    val = partes[idx]
+                    val = nuevas_partes[idx]
                     val_norm = re.sub(r'[*_]', '', val).strip().lower()
                     prev_norm = re.sub(r'[*_]', '', prev_cols[idx]).strip().lower()
                     if val_norm != "" and val_norm == prev_norm:
                         nuevas_partes[idx] = ""
                     else:
-                        prev_cols[idx] = val
+                        if val_norm != "":
+                            prev_cols[idx] = val
                 else:
                     break
 
             nueva_linea = "| " + " | ".join(nuevas_partes) + " |"
-            nuevas_lineas.append(nueva_linea)
+            lineas_finales.append(nueva_linea)
         else:
             en_tabla = False
             headers = []
             prev_cols = []
-            nuevas_lineas.append(linea)
+            lineas_finales.append(linea)
 
-    return "\n".join(nuevas_lineas)
+    return "\n".join(lineas_finales)
 
 def consultar_gemini(client, system_prompt, contexto_datos, user_query, modelos=None):
     """
@@ -153,7 +199,7 @@ def consultar_gemini(client, system_prompt, contexto_datos, user_query, modelos=
     else:
         answer_clean = answer
 
-    # Suprimir repeticiones consecutivas en tablas para formato ejecutivo limpio
-    answer_clean = suprimir_duplicados_markdown(answer_clean)
+    # Normalizar tablas y suprimir repeticiones consecutivas para formato ejecutivo limpio
+    answer_clean = normalizar_y_suprimir_tablas(answer_clean)
 
     return answer_clean, chart_data, None

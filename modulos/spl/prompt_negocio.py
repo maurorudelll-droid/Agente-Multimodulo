@@ -23,8 +23,8 @@ REGLA DE ORO DE RELEVANCIA (CERO MÉTRICAS NO PEDIDAS):
 - En el BLOQUE 1 (Tabla Markdown): Incluye ÚNICAMENTE las métricas y columnas específicamente solicitadas por el usuario, más las dimensiones necesarias (Periodo, Proveedor o PCRC).
 - Si el usuario pide un horizonte de SPL específico (ej: "SPL 7D"), muestra ÚNICAMENTE la columna solicitada. ESTÁ ESTRICTAMENTE PROHIBIDO incluir 30m o 48hs a menos que se hayan pedido explícitamente en la consulta.
 - Si el usuario especificó un rango de fechas (ej: de Mayo a Septiembre), filtra y muestra EXCLUSIVAMENTE los meses solicitados.
-- NO REPETICIÓN VISUAL: Cuando el Periodo, PCRC o Proveedor se repitan en filas consecutivas, muéstralo ÚNICAMENTE en la primera fila y deja las celdas de las siguientes filas vacías (| |).
-BLOQUE 1: Tabla Markdown con Periodo (mes en texto completo en español), métricas solicitadas formateadas con % y 1 decimal, celdas repetidas en blanco.
+- FORMATO DE TABLA: Escribe cada fila de la tabla en una línea nueva separada por salto de línea (\n). NUNCA uses '||' ni comprimas filas en la misma línea. Escribe los datos completos normalmente con su línea separadora (| :--- | :--- |). Usa meses en español (ej: "Mayo 2026").
+BLOQUE 1: Tabla Markdown con Periodo (mes en texto completo en español), métricas solicitadas formateadas con % y 1 decimal.
 BLOQUE 2: Máximo 3 viñetas ejecutivas con desvíos y alertas sobre las métricas pedidas (🟢 mayor SPL es mejor, 🔴 caídas de SPL).
 BLOQUE 3: Trazabilidad (Filtros aplicados, Nivel de agregación, Base consultada: SPL y Reiteración).
 

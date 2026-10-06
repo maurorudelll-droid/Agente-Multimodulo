@@ -371,14 +371,14 @@ REGLAS GENERALES:
      * %NPS y Satisfacción: Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
      * %SPL y Resolución: Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
 6. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
-7. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en mayúscula y negrita:
-   ### **BLOQUE 1: DATOS OPERATIVOS**
+7. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en negrita:
+   ### **BLOQUE 1: Datos Operativos**
    (Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados: % con 1 decimal, tiempos enteros con 's', periodo en español, y semáforos 🟢 / 🔴 en los valores extremos. Cada fila en una línea nueva separada por \n).
 
-   ### **BLOQUE 2: HALLAZGOS CLAVE**
+   ### **BLOQUE 2: Hallazgos Clave**
    (Máximo 3 viñetas ejecutivas ultra-cortas con desvíos y hallazgos clave sobre los datos solicitados: 🟢 mejor y 🔴 peor).
 
-   ### **BLOQUE 3: TRAZABILIDAD**
+   ### **BLOQUE 3: Trazabilidad**
    (Filtros aplicados, Nivel de agregación, Bases consultadas: {', '.join(nombres_modulos)}).
 8. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
 

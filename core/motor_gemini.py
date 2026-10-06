@@ -51,12 +51,12 @@ MAPA_MESES_STR = {
 }
 
 def formatear_titulos_bloques(texto):
-    """Normaliza los encabezados de los bloques a mayúsculas y negrita."""
+    """Normaliza los encabezados de los bloques a formato ejecutivo en negrita con BLOQUE en mayúscula."""
     if not texto:
         return texto
-    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*1[^\n|*]*', '### **BLOQUE 1: DATOS OPERATIVOS**', texto)
-    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*2[^\n|*]*', '### **BLOQUE 2: HALLAZGOS CLAVE**', texto)
-    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*3[^\n|*]*', '### **BLOQUE 3: TRAZABILIDAD**', texto)
+    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*1[^\n|*]*', '### **BLOQUE 1: Datos Operativos**', texto)
+    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*2[^\n|*]*', '### **BLOQUE 2: Hallazgos Clave**', texto)
+    texto = re.sub(r'(?i)(?:###\s*)?(?:\*\*)?BLOQUE\s*3[^\n|*]*', '### **BLOQUE 3: Trazabilidad**', texto)
     return texto
 
 def normalizar_y_suprimir_tablas(texto):
@@ -79,7 +79,7 @@ def normalizar_y_suprimir_tablas(texto):
 
     # Paso 1: Separar títulos de bloque si están pegados a la tabla
     texto = re.sub(r'([^\n]*BLOQUE[^\n|]*)\s*\|', r'\1\n\n|', texto)
-    texto = re.sub(r'([^\n]*DATOS OPERATIVOS[^\n|]*)\s*\|', r'\1\n\n|', texto)
+    texto = re.sub(r'(?i)([^\n]*Datos Operativos[^\n|]*)\s*\|', r'\1\n\n|', texto)
 
     # Paso 2: Separar filas si fueron comprimidas con '||' en la misma línea
     lineas_raw = texto.split("\n")

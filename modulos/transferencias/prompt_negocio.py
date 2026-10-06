@@ -26,7 +26,8 @@ REGLA DE ORO DE RELEVANCIA (CERO MÉTRICAS NO PEDIDAS):
 - En el BLOQUE 1 (Tabla Markdown): Incluye ÚNICAMENTE las métricas y columnas específicamente solicitadas por el usuario, más las dimensiones necesarias (Periodo, Proveedor o PCRC).
 - Si el usuario pide una tasa de transferencia específica (ej: "1L", "2L", "Retención"), muestra ÚNICAMENTE la columna solicitada. ESTÁ ESTRICTAMENTE PROHIBIDO incluir otras transferencias a menos que se hayan pedido explícitamente.
 - Si el usuario especificó un rango de fechas (ej: de Mayo a Septiembre), filtra y muestra EXCLUSIVAMENTE los meses solicitados.
-BLOQUE 1: Tabla Markdown con Periodo (mes en texto completo en español), métricas solicitadas formateadas con % y 1 decimal.
+- NO REPETICIÓN VISUAL: Cuando el Periodo, PCRC o Proveedor se repitan en filas consecutivas, muéstralo ÚNICAMENTE en la primera fila y deja las celdas de las siguientes filas vacías (| |).
+BLOQUE 1: Tabla Markdown con Periodo (mes en texto completo en español), métricas solicitadas formateadas con % y 1 decimal, celdas repetidas en blanco.
 BLOQUE 2: Máximo 3 viñetas ejecutivas con desvíos y alertas sobre las métricas pedidas (🟢 menor tasa de transferencia, 🔴 desvío alto).
 BLOQUE 3: Trazabilidad (Filtros aplicados, Nivel de agregación, Base consultada: Transferencias y Desvíos).
 

@@ -327,12 +327,20 @@ REGLAS GENERALES:
 3. FILTRADO TEMPORAL Y SEGMENTAL ESTRICTO:
    - Si el usuario solicita un rango de meses o periodo específico (ej: "de Mayo a Septiembre del 2026"), filtra y devuelve ÚNICAMENTE los datos correspondientes a esos meses. No incluyas meses fuera del rango.
    - Si pide un PCRC o Proveedor específico, filtra y devuelve ÚNICAMENTE ese PCRC o Proveedor.
-4. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
-5. Estructura rigurosamente la respuesta en 3 bloques:
-   BLOQUE 1: Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados (% con 1 decimal, tiempos enteros con 's', periodo en español).
+4. REGLA ESTRICTA DE NO REPETICIÓN VISUAL (CELDAS EN BLANCO EN FILAS CONSECUTIVAS):
+   - En la tabla Markdown del BLOQUE 1, cuando un valor en columnas jerárquicas (Periodo, PCRC, Proveedor) se repite de una fila a la siguiente, muéstralo ÚNICAMENTE en la primera fila y deja las celdas de las siguientes filas vacías (| |).
+   - Ejemplo visual requerido:
+     | Periodo | PCRC | Proveedor | Métrica |
+     | Mayo 2026 | PCRC A | PROV 1 | 410s |
+     | | | PROV 2 | 425s |
+     | Junio 2026 | | PROV 1 | 415s |
+     | | | PROV 2 | 430s |
+5. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
+6. Estructura rigurosamente la respuesta en 3 bloques:
+   BLOQUE 1: Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados (% con 1 decimal, tiempos enteros con 's', periodo en español, celdas repetidas en blanco).
    BLOQUE 2: Máximo 3 viñetas ejecutivas ultra-cortas con desvíos y hallazgos clave sobre los datos solicitados (🟢 y 🔴).
    BLOQUE 3: Trazabilidad (Filtros aplicados, Nivel de agregación, Bases consultadas: {', '.join(nombres_modulos)}).
-6. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
+7. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
 
 DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
 """ + "\n\n".join(instrucciones_modulos)

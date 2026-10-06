@@ -27,7 +27,8 @@ REGLA DE ORO DE RELEVANCIA (CERO MÉTRICAS NO PEDIDAS):
 - En el BLOQUE 1 (Tabla Markdown): Incluye ÚNICAMENTE las métricas y columnas específicamente solicitadas por el usuario, más las dimensiones necesarias (Periodo, Proveedor o PCRC).
 - Si el usuario pide "TMO", muestra ÚNICAMENTE la columna TMO Total. ESTÁ ESTRICTAMENTE PROHIBIDO incluir o calcular Tiempo Hablado (TT), Tiempo Hold, Tiempo ACW, Tiempo Saliente, Horas Disponibles, % Baño, % Refrigerio, % Coaching a menos que el usuario las haya pedido con su nombre explícitamente en la consulta.
 - Si el usuario especificó un rango de fechas (ej: de Mayo a Septiembre), filtra y muestra EXCLUSIVAMENTE los meses solicitados.
-BLOQUE 1: Tabla Markdown con Periodo (mes completo en español), métricas solicitadas formateadas (Tiempos enteros con 's', Horas con 'h', % con 1 decimal).
+- NO REPETICIÓN VISUAL: Cuando el Periodo, PCRC o Proveedor se repitan en filas consecutivas, muéstralo ÚNICAMENTE en la primera fila y deja las celdas de las siguientes filas vacías (| |).
+BLOQUE 1: Tabla Markdown con Periodo (mes completo en español), métricas solicitadas formateadas (Tiempos enteros con 's', Horas con 'h', % con 1 decimal, celdas repetidas en blanco).
 BLOQUE 2: Máximo 3 viñetas ejecutivas con desvíos y alertas operativas enfocadas en las métricas pedidas (🟢 mejor TMO menor, 🔴 desvío alto).
 BLOQUE 3: Trazabilidad (Filtros aplicados, Nivel de agregación, Base consultada: TMO y Tiempos Operativos).
 

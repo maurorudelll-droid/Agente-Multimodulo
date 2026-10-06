@@ -141,8 +141,9 @@ with st.sidebar:
         nombre = m.get("nombre", mid)
         metricas = m.get("metricas", [])
 
+        # Fecha de actualización visible afuera, arriba de cada cuadrante
+        st.caption(f"🕒 Act: `{fecha_m}`")
         with st.expander(f"{icono} {nombre}", expanded=False):
-            st.caption(f"🕒 **Actualizado:** `{fecha_m}`")
             if m.get("descripcion"):
                 st.caption(f"*{m['descripcion']}*")
             if metricas:

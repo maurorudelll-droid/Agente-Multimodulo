@@ -134,15 +134,21 @@ with st.sidebar:
 
     # Estado de las 4 bases de datos conectadas con desplegables de métricas
     st.markdown("### 🗂️ Bases de Datos Conectadas")
-    for m in modulos:
+    for i, m in enumerate(modulos):
         mid = m["id"]
         fecha_m = obtener_fecha_base(mid)
         icono = m.get("icono", "📊")
         nombre = m.get("nombre", mid)
         metricas = m.get("metricas", [])
 
-        # Fecha de actualización visible afuera, arriba de cada cuadrante
-        st.caption(f"🕒 Act: `{fecha_m}`")
+        # Fecha de actualización pegada al cuadrante de este módulo, con separación del anterior
+        m_top = "4px" if i == 0 else "18px"
+        st.markdown(
+            f"""<div style="margin-top: {m_top}; margin-bottom: -10px; font-size: 0.77rem; color: #475569; font-weight: 500;">
+                🕒 Act: <span style="color: #0369a1; background: #e0f2fe; padding: 1px 6px; border-radius: 4px; font-weight: 600;">{fecha_m}</span>
+            </div>""",
+            unsafe_allow_html=True
+        )
         with st.expander(f"{icono} {nombre}", expanded=False):
             if m.get("descripcion"):
                 st.caption(f"*{m['descripcion']}*")

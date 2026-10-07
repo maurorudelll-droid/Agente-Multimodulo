@@ -53,6 +53,16 @@ div[data-baseweb="input"]:focus-within {
     font-weight: 600;
     color: #334155;
 }
+
+/* Evitar el efecto de pantalla grisada/desvanecida mientras Streamlit procesa una consulta */
+div[data-stale="true"],
+div[data-testid="stChatMessage"][data-stale="true"],
+.stElementContainer[data-stale="true"],
+div[data-testid="stVerticalBlock"] > div[data-stale="true"] {
+    opacity: 1 !important;
+    filter: none !important;
+    transition: none !important;
+}
 </style>
 """, unsafe_allow_html=True)
 

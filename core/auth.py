@@ -1,6 +1,8 @@
 import os
 import re
 import time
+import hashlib
+import hmac
 import streamlit as st
 from datetime import datetime
 from core.database_redis import (
@@ -15,8 +17,31 @@ from core.database_redis import (
     obtener_secreto
 )
 
-PASSWORD_ACCESO = obtener_secreto("APP_PASSWORD", "atencion2026")
-PASSWORD_ADMIN = obtener_secreto("ADMIN_PASSWORD", "pirania9")
+# Contraseñas maestras cargadas exclusivamente de secretos o entorno
+PASSWORD_ACCESO = obtener_secreto("APP_PASSWORD", "")
+PASSWORD_ADMIN = obtener_secreto("ADMIN_PASSWORD", "")
+
+SALT_PIN = "agy_salt_seguridad_2026_auth"
+
+def hashear_pin(pin_texto: str) -> str:
+    """Genera un hash SHA-256 seguro con sal criptográfica para el PIN numérico."""
+    if not pin_texto:
+        return ""
+    return hashlib.sha256(f"{SALT_PIN}:{pin_texto}".encode("utf-8")).hexdigest()
+
+def verificar_pin(pin_ingresado: str, pin_almacenado: str) -> bool:
+    """
+    Verifica el PIN ingresado contra el almacenado.
+    Soporta comparación en tiempo constante y migración transparente de texto plano.
+    """
+    if not pin_ingresado or not pin_almacenado:
+        return False
+    hash_ingresado = hashear_pin(pin_ingresado)
+    if hmac.compare_digest(hash_ingresado, pin_almacenado):
+        return True
+    if pin_almacenado == pin_ingresado:
+        return True
+    return False
 
 def init_auth_session():
     """Inicializa variables de sesión de autenticación."""
@@ -55,7 +80,9 @@ def render_login(avatar_path="bot_avatar.png"):
                 pwd = st.text_input("Contraseña General:", type="password", key="general_pwd", placeholder="Ingresa la contraseña aquí...")
                 st.write("")
                 if st.button("Continuar ➡️", type="primary", use_container_width=True):
-                    if pwd == PASSWORD_ACCESO:
+                    if not PASSWORD_ACCESO:
+                        st.error("⚠️ Configuración incompleta: Por favor define 'APP_PASSWORD' en .streamlit/secrets.toml")
+                    elif pwd == PASSWORD_ACCESO:
                         st.session_state.general_authenticated = True
                         st.rerun()
                     else:
@@ -88,9 +115,15 @@ def render_login(avatar_path="bot_avatar.png"):
 
                             if user_id not in usuarios_db:
                                 st.error("Usuario no encontrado. Por favor regístrate en la solapa 'Crear Nuevo Usuario'.")
-                            elif usuarios_db[user_id].get("pin") != pin_input:
+                            elif not verificar_pin(pin_input, usuarios_db[user_id].get("pin", "")):
                                 st.error("PIN incorrecto.")
                             else:
+                                # Migración automática y transparente de PIN antiguo a hash seguro
+                                pin_guardado = str(usuarios_db[user_id].get("pin", ""))
+                                if pin_guardado == pin_input:
+                                    usuarios_db[user_id]["pin"] = hashear_pin(pin_input)
+                                    guardar_usuarios(usuarios_db)
+
                                 st.session_state.authenticated = True
                                 st.session_state.current_user = user_id
                                 st.session_state.user_display = usuarios_db[user_id].get("nombre", usuario_input)
@@ -119,7 +152,7 @@ def render_login(avatar_path="bot_avatar.png"):
                             else:
                                 usuarios_db[r_id] = {
                                     "nombre": r_nombre,
-                                    "pin": r_pin,
+                                    "pin": hashear_pin(r_pin),
                                     "fecha_registro": datetime.now(TZ_ARG).strftime("%d/%m/%Y %H:%M")
                                 }
                                 guardar_usuarios(usuarios_db)

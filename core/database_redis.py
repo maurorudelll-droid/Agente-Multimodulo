@@ -18,9 +18,9 @@ def obtener_secreto(key, default=""):
     except Exception:
         return os.environ.get(key, default)
 
-# Configuración Upstash Redis REST
-UPSTASH_URL = obtener_secreto("UPSTASH_REDIS_REST_URL", "https://apparent-gopher-197179.upstash.io")
-UPSTASH_TOKEN = obtener_secreto("UPSTASH_REDIS_REST_TOKEN", "gQAAAAAAAwI7AAIgcDFiZTVjN2FhMjU5OGE0NWM2YmYzOGE0MDg4ODNmMDZiMg")
+# Configuración Upstash Redis REST (cargada exclusivamente desde secrets o variables de entorno)
+UPSTASH_URL = obtener_secreto("UPSTASH_REDIS_REST_URL", "")
+UPSTASH_TOKEN = obtener_secreto("UPSTASH_REDIS_REST_TOKEN", "")
 
 def upstash_execute(*command):
     """Ejecuta un comando en Upstash Redis vía REST API con urllib nativo."""

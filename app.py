@@ -108,28 +108,29 @@ with st.sidebar:
     # Indicador de analistas activos en tiempo real
     render_presence_indicator()
 
-    # Configuración de Gemini API Key si no está cargada
+    # Verificación de Gemini API Key en el servidor
     from core.database_redis import obtener_secreto
     api_key_actual = obtener_secreto("GEMINI_API_KEY", "") or st.session_state.get("gemini_api_key_manual", "")
     if not api_key_actual:
         st.divider()
-        st.warning("⚠️ Falta Gemini API Key")
-        key_input = st.text_input("Ingresa tu Gemini API Key:", type="password", key="input_api_key_sidebar", placeholder="AIzaSy...")
-        if key_input:
-            st.session_state.gemini_api_key_manual = key_input
-            # Guardar automáticamente en .streamlit/secrets.toml
-            try:
-                import re
-                sec_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".streamlit", "secrets.toml")
-                if os.path.exists(sec_path):
-                    with open(sec_path, "r", encoding="utf-8") as f:
-                        c_sec = f.read()
-                    c_sec = re.sub(r'GEMINI_API_KEY\s*=\s*".*?"', f'GEMINI_API_KEY = "{key_input}"', c_sec)
-                    with open(sec_path, "w", encoding="utf-8") as f:
-                        f.write(c_sec)
-            except Exception:
-                pass
-            st.rerun()
+        st.warning("⚠️ Falta configurar Gemini API Key en el servidor.")
+        # Solo un administrador autenticado puede configurar la clave en tiempo de ejecución
+        if st.session_state.get("admin_authenticated", False):
+            key_input = st.text_input("Ingresar Gemini API Key (Admin):", type="password", key="input_api_key_sidebar", placeholder="AIzaSy...")
+            if key_input:
+                st.session_state.gemini_api_key_manual = key_input
+                try:
+                    import re
+                    sec_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".streamlit", "secrets.toml")
+                    if os.path.exists(sec_path):
+                        with open(sec_path, "r", encoding="utf-8") as f:
+                            c_sec = f.read()
+                        c_sec = re.sub(r'GEMINI_API_KEY\s*=\s*".*?"', f'GEMINI_API_KEY = "{key_input}"', c_sec)
+                        with open(sec_path, "w", encoding="utf-8") as f:
+                            f.write(c_sec)
+                except Exception:
+                    pass
+                st.rerun()
 
     st.divider()
 
@@ -185,7 +186,9 @@ with st.sidebar:
         if not st.session_state.get("admin_authenticated", False):
             clave_admin = st.text_input("Contraseña de administrador:", type="password", key="admin_key_input")
             if st.button("Acceder como Admin", use_container_width=True):
-                if clave_admin == PASSWORD_ADMIN:
+                if not PASSWORD_ADMIN:
+                    st.error("⚠️ Falta configurar 'ADMIN_PASSWORD' en .streamlit/secrets.toml")
+                elif clave_admin == PASSWORD_ADMIN:
                     st.session_state.admin_authenticated = True
                     st.rerun()
                 else:

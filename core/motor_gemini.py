@@ -164,8 +164,8 @@ def normalizar_y_suprimir_tablas(texto):
 
 def semaforizar_tabla_por_bloque(texto):
     """
-    Agrega semáforos ejecutivos 🟢 (mejor) y 🔴 (peor) a la columna métrica
-    de cada bloque de periodo analizado cuando se comparan entidades.
+    Agrega semáforos ejecutivos 🟢 (mejor) y 🔴 (peor) a TODAS las columnas de métricas
+    de cada bloque de periodo analizado cuando se comparan entidades (o entre periodos si es evolutivo).
     """
     if not texto or "|" not in texto:
         return texto
@@ -193,57 +193,88 @@ def semaforizar_tabla_por_bloque(texto):
     if not filas_tabla_idx or not headers:
         return texto
 
-    col_metrica_idx = len(headers) - 1
-    nombre_metrica = headers[col_metrica_idx]
-    es_menor_mejor = any(k in nombre_metrica for k in ["tmo", "tiempo", "tt", "hold", "acw", "transf", "rep ", "desvio"])
+    # Identificar columnas dimensionales vs columnas de métricas
+    cols_dimensiones = ["periodo", "pcrc", "proveedor", "campaña", "campana", "segmento", "canal", "servicio"]
+    indices_metricas = []
+    for idx, h in enumerate(headers):
+        if not any(dim in h for dim in cols_dimensiones):
+            indices_metricas.append(idx)
 
-    periodo_actual = ""
-    bloques_periodo = {}
+    # Si no se detectaron columnas métricas por nombre, tomar las columnas no iniciales
+    if not indices_metricas:
+        if len(headers) > 2:
+            indices_metricas = list(range(2, len(headers)))
+        elif len(headers) == 2:
+            indices_metricas = [1]
+        else:
+            return texto
 
+    # Detectar si la tabla tiene una dimensión de entidad (ej: Proveedor o PCRC)
+    tiene_entidad = any(any(ent in h for ent in ["proveedor", "pcrc", "campaña", "campana", "servicio"]) for h in headers)
+
+    # Paso 1: Limpiar cualquier semáforo previo colocado por Gemini en todas las celdas métricas
     for l_idx in filas_tabla_idx:
         partes = [c.strip() for c in lineas[l_idx].split("|")[1:-1]]
-        if len(partes) <= col_metrica_idx:
-            continue
-        col_p = partes[0]
-        if col_p != "":
-            periodo_actual = col_p
-
-        val_metrica_str = partes[col_metrica_idx]
-        val_limpio = re.sub(r'[🟢🔴]', '', val_metrica_str).strip()
-        match_num = re.search(r'([\d]+(?:[.,]\d+)?)', val_limpio)
-        if match_num:
-            val_num = float(match_num.group(1).replace(",", "."))
-            if periodo_actual not in bloques_periodo:
-                bloques_periodo[periodo_actual] = []
-            bloques_periodo[periodo_actual].append((l_idx, val_num, val_limpio))
-
-    reemplazos = {}
-    for p, items in bloques_periodo.items():
-        if len(items) >= 2:
-            valores = [it[1] for it in items]
-            min_v = min(valores)
-            max_v = max(valores)
-            if min_v != max_v:
-                for l_idx, v_num, v_str in items:
-                    if es_menor_mejor:
-                        if v_num == min_v:
-                            reemplazos[l_idx] = f"{v_str} 🟢"
-                        elif v_num == max_v:
-                            reemplazos[l_idx] = f"{v_str} 🔴"
-                        else:
-                            reemplazos[l_idx] = v_str
-                    else:
-                        if v_num == max_v:
-                            reemplazos[l_idx] = f"{v_str} 🟢"
-                        elif v_num == min_v:
-                            reemplazos[l_idx] = f"{v_str} 🔴"
-                        else:
-                            reemplazos[l_idx] = v_str
-
-    for l_idx, nuevo_val in reemplazos.items():
-        partes = [c.strip() for c in lineas[l_idx].split("|")[1:-1]]
-        partes[col_metrica_idx] = nuevo_val
+        for col_idx in indices_metricas:
+            if col_idx < len(partes):
+                partes[col_idx] = re.sub(r'[🟢🔴]', '', partes[col_idx]).strip()
         lineas[l_idx] = "| " + " | ".join(partes) + " |"
+
+    # Paso 2: Procesar CADA columna métrica de forma independiente
+    for col_m_idx in indices_metricas:
+        nombre_metrica = headers[col_m_idx] if col_m_idx < len(headers) else ""
+        es_menor_mejor = any(k in nombre_metrica for k in ["tmo", "tiempo", "tt", "hold", "acw", "saliente", "transf", "rep ", "desvio", "desvíos", "1l", "2l"])
+
+        periodo_actual = ""
+        bloques = {}  # periodo -> list of (l_idx, val_num, val_str)
+
+        for l_idx in filas_tabla_idx:
+            partes = [c.strip() for c in lineas[l_idx].split("|")[1:-1]]
+            if len(partes) <= col_m_idx:
+                continue
+
+            col_p = partes[0] if len(partes) > 0 else ""
+            if col_p != "":
+                periodo_actual = col_p
+
+            val_str = partes[col_m_idx]
+            match_num = re.search(r'([\d]+(?:[.,]\d+)?)', val_str)
+            if match_num:
+                val_num = float(match_num.group(1).replace(",", "."))
+                grupo_key = periodo_actual if tiene_entidad else "__total__"
+                if grupo_key not in bloques:
+                    bloques[grupo_key] = []
+                bloques[grupo_key].append((l_idx, val_num, val_str))
+
+        # Calcular mejor y peor por cada grupo/periodo
+        reemplazos_col = {}
+        for g_key, items in bloques.items():
+            if len(items) >= 2:
+                valores = [it[1] for it in items]
+                min_v = min(valores)
+                max_v = max(valores)
+                if min_v != max_v:
+                    for l_idx, v_num, v_str in items:
+                        if es_menor_mejor:
+                            if v_num == min_v:
+                                reemplazos_col[l_idx] = f"{v_str} 🟢"
+                            elif v_num == max_v:
+                                reemplazos_col[l_idx] = f"{v_str} 🔴"
+                            else:
+                                reemplazos_col[l_idx] = v_str
+                        else:
+                            if v_num == max_v:
+                                reemplazos_col[l_idx] = f"{v_str} 🟢"
+                            elif v_num == min_v:
+                                reemplazos_col[l_idx] = f"{v_str} 🔴"
+                            else:
+                                reemplazos_col[l_idx] = v_str
+
+        # Aplicar reemplazos para esta columna métrica
+        for l_idx, nuevo_val in reemplazos_col.items():
+            partes = [c.strip() for c in lineas[l_idx].split("|")[1:-1]]
+            partes[col_m_idx] = nuevo_val
+            lineas[l_idx] = "| " + " | ".join(partes) + " |"
 
     return "\n".join(lineas)
 

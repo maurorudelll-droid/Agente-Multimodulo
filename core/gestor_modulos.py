@@ -143,10 +143,9 @@ def guardar_dataset_modulo(modulo_id, archivo_subido):
     except Exception as e:
         return False, str(e)
 
-def seleccionar_tablas_relevantes(tablas_dict, user_query=""):
+def seleccionar_tablas_relevantes(tablas_dict, user_query="", contexto_previo=""):
     """
-    Filtra inteligentemente las tablas del módulo según la dimensión solicitada en la consulta.
-    Evita enviar tablas masivas innecesarias (ej. pcrc_proveedor que puede pesar +70.000 caracteres)
+    Selecciona de forma inteligente únicamente las tablas necesarias según la dimensión solicitada:
     si el usuario solo pidió nivel proveedor, nivel pcrc o nivel canal consolidado.
     Reduce drásticamente el tamaño del contexto hasta en un 90%, evitando límites de cuota (429) y demoras.
     """
@@ -154,22 +153,28 @@ def seleccionar_tablas_relevantes(tablas_dict, user_query=""):
         return {}
 
     q = (user_query or "").lower()
-    pide_cruzado = ("pcrc" in q and "proveedor" in q) or "cruzad" in q
+    q_ctx = ((contexto_previo or "") + " " + q).lower()
+
+    pide_cruzado = ("pcrc" in q and "proveedor" in q) or "cruzad" in q or ("pcrc" in q_ctx and "proveedor" in q)
     pide_prov = "proveedor" in q
     pide_pcrc = "pcrc" in q or "campa" in q or "servicio" in q
     pide_canal = "canal" in q or "general" in q or "total" in q or "consolidado" in q
 
     seleccionadas = {}
     if pide_cruzado:
-        # Si piden específicamente PCRC y proveedor cruzados, solo enviar pcrc_proveedor para no saturar memoria
+        # Si piden específicamente PCRC y proveedor cruzados, enviar pcrc_proveedor y proveedor
         if "pcrc_proveedor" in tablas_dict and not getattr(tablas_dict["pcrc_proveedor"], "empty", True):
             seleccionadas["pcrc_proveedor"] = tablas_dict["pcrc_proveedor"]
-        elif "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
+        if "proveedor" in tablas_dict and not getattr(tablas_dict["proveedor"], "empty", True):
+            seleccionadas["proveedor"] = tablas_dict["proveedor"]
+        if not seleccionadas and "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
             seleccionadas["canal"] = tablas_dict["canal"]
     elif pide_prov:
         if "proveedor" in tablas_dict and not getattr(tablas_dict["proveedor"], "empty", True):
             seleccionadas["proveedor"] = tablas_dict["proveedor"]
-        elif "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
+        if "pcrc" in q_ctx and "pcrc_proveedor" in tablas_dict and not getattr(tablas_dict["pcrc_proveedor"], "empty", True):
+            seleccionadas["pcrc_proveedor"] = tablas_dict["pcrc_proveedor"]
+        elif not seleccionadas and "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
             seleccionadas["canal"] = tablas_dict["canal"]
     elif pide_pcrc:
         if "pcrc" in tablas_dict and not getattr(tablas_dict["pcrc"], "empty", True):
@@ -190,11 +195,11 @@ def seleccionar_tablas_relevantes(tablas_dict, user_query=""):
 
     return seleccionadas
 
-def filtrar_df_por_entidades_y_metricas(df, user_query=""):
+def filtrar_df_por_entidades_y_metricas(df, user_query="", contexto_previo=""):
     """
     Filtra filas y columnas de un DataFrame según las entidades y métricas específicas
-    mencionadas en la consulta. Reduce el tamaño del prompt hasta un 95%, acelerando
-    drásticamente la respuesta del modelo de IA y evitando timeouts.
+    mencionadas en la consulta o heredadas del contexto conversacional previo.
+    Reduce el tamaño del prompt hasta un 95%, acelerando la respuesta y evitando timeouts.
     """
     if df is None or getattr(df, 'empty', True):
         return df
@@ -202,43 +207,66 @@ def filtrar_df_por_entidades_y_metricas(df, user_query=""):
     import re
     df_res = df.copy()
     q = (user_query or "").lower()
+    q_ctx = ((contexto_previo or "") + " " + q).lower()
 
     # 1. Filtrar filas por PCRC si se menciona uno específico
     if "PCRC" in df_res.columns:
-        pcrcs = [str(p) for p in df_res["PCRC"].dropna().unique() if str(p).strip()]
-        for p in pcrcs:
-            palabras = [w for w in re.split(r'\W+', p.lower()) if len(w) > 2]
-            if palabras and all(w in q for w in palabras):
-                df_res = df_res[df_res["PCRC"].astype(str).str.lower() == p.lower()]
-                break
+        pide_todos_pcrc = any(frase in q for frase in ["todos los pcrc", "cada pcrc", "nivel pcrc", "por pcrc", "general", "canal"])
+        if not pide_todos_pcrc:
+            pcrcs = [str(p) for p in df_res["PCRC"].dropna().unique() if str(p).strip()]
+            pcrc_encontrado = None
+            for p in pcrcs:
+                palabras = [w for w in re.split(r'\W+', p.lower()) if len(w) > 2]
+                if palabras and all(w in q for w in palabras):
+                    pcrc_encontrado = p
+                    break
+            if not pcrc_encontrado and contexto_previo:
+                for p in pcrcs:
+                    palabras = [w for w in re.split(r'\W+', p.lower()) if len(w) > 2]
+                    if palabras and all(w in q_ctx for w in palabras):
+                        pcrc_encontrado = p
+                        break
+            if pcrc_encontrado:
+                df_res = df_res[df_res["PCRC"].astype(str).str.lower() == pcrc_encontrado.lower()]
 
     # 2. Filtrar filas por PROVEEDOR si se menciona uno específico (pero no si pide todos)
     if "PROVEEDOR" in df_res.columns:
-        pide_todos_prov = any(frase in q for frase in ["sus proveedores", "por proveedor", "los proveedores", "cada proveedor", "segmentado proveedor"])
+        pide_todos_prov = any(frase in q for frase in ["sus proveedores", "por proveedor", "los proveedores", "cada proveedor", "segmentado proveedor", "segmentado sus proveedores"])
         if not pide_todos_prov:
             provs = [str(pr) for pr in df_res["PROVEEDOR"].dropna().unique() if str(pr).strip()]
+            prov_encontrado = None
             for pr in provs:
                 palabras = [w for w in re.split(r'\W+', pr.lower()) if len(w) > 2]
                 if palabras and all(w in q for w in palabras):
-                    df_res = df_res[df_res["PROVEEDOR"].astype(str).str.lower() == pr.lower()]
+                    prov_encontrado = pr
                     break
+            if not prov_encontrado and contexto_previo:
+                for pr in provs:
+                    palabras = [w for w in re.split(r'\W+', pr.lower()) if len(w) > 2]
+                    if palabras and all(w in q_ctx for w in palabras):
+                        prov_encontrado = pr
+                        break
+            if prov_encontrado:
+                df_res = df_res[df_res["PROVEEDOR"].astype(str).str.lower() == prov_encontrado.lower()]
 
     # 3. Filtrar columnas relevantes según las métricas pedidas
     cols_base = [c for c in df_res.columns if c in ["Periodo_Str", "Periodo", "PCRC", "PROVEEDOR"]]
     cols_seleccionadas = list(cols_base)
 
+    q_metricas = q if any(m in q for m in ["nps", "spl", "tmo", "transf", "1l", "2l", "resol", "sat", "llamadas", "encuestas"]) else q_ctx
+
     for c in df_res.columns:
         if c in cols_base:
             continue
         c_low = c.lower()
-        if ("nps" in c_low and "nps" in q) or \
-           ("spl" in c_low and "spl" in q) or \
-           ("tmo" in c_low and "tmo" in q) or \
-           ("resol" in c_low and ("resol" in q or "fcr" in q)) or \
-           ("sat" in c_low and ("sat" in q or "csat" in q)) or \
-           ("transf" in c_low and "transf" in q) or \
-           ("llamadas" in c_low and ("llamadas" in q or "volumen" in q)) or \
-           ("encuestas" in c_low and ("encuestas" in q or "q meda" in q or "participac" in q)):
+        if ("nps" in c_low and "nps" in q_metricas) or \
+           ("spl" in c_low and "spl" in q_metricas) or \
+           ("tmo" in c_low and "tmo" in q_metricas) or \
+           ("resol" in c_low and ("resol" in q_metricas or "fcr" in q_metricas)) or \
+           ("sat" in c_low and ("sat" in q_metricas or "csat" in q_metricas)) or \
+           ("transf" in c_low and ("transf" in q_metricas or "1l" in q_metricas or "2l" in q_metricas)) or \
+           ("llamadas" in c_low and ("llamadas" in q_metricas or "volumen" in q_metricas)) or \
+           ("encuestas" in c_low and ("encuestas" in q_metricas or "q meda" in q_metricas or "participac" in q_metricas)):
             cols_seleccionadas.append(c)
 
     # Si se seleccionaron métricas específicas, estrechar las columnas
@@ -247,11 +275,11 @@ def filtrar_df_por_entidades_y_metricas(df, user_query=""):
 
     return df_res
 
-def generar_contexto_modulo(mod_info, tablas_dict, user_query=""):
+def generar_contexto_modulo(mod_info, tablas_dict, user_query="", contexto_previo=""):
     """
     Genera el texto formateado en Markdown de las tablas relevantes y filtradas para la consulta.
     """
-    tablas_sel = seleccionar_tablas_relevantes(tablas_dict, user_query)
+    tablas_sel = seleccionar_tablas_relevantes(tablas_dict, user_query, contexto_previo)
     nombres_desc = {
         "canal": "TABLA 1: NIVEL CANAL (Consolidado General, 1 fila por mes)",
         "pcrc": "TABLA 2: NIVEL PCRC (Desglosado por PCRC/Campaña)",
@@ -261,11 +289,11 @@ def generar_contexto_modulo(mod_info, tablas_dict, user_query=""):
     partes = []
     for k, df in tablas_sel.items():
         desc = nombres_desc.get(k, f"TABLA: {k.upper()}")
-        df_filtrado = filtrar_df_por_entidades_y_metricas(df, user_query)
+        df_filtrado = filtrar_df_por_entidades_y_metricas(df, user_query, contexto_previo)
         partes.append(f"--- {desc} ---\n" + df_filtrado.to_string(index=False))
     return "\n\n".join(partes)
 
-def calcular_tabla_participacion(tablas_nps, tablas_tmo, user_query=""):
+def calcular_tabla_participacion(tablas_nps, tablas_tmo, user_query="", contexto_previo=""):
     """
     Calcula de forma matemática exacta el 'Porcentaje de Participación' entre módulos:
     Fórmula: (Q MEDA / Q Llamadas) * 100
@@ -276,8 +304,8 @@ def calcular_tabla_participacion(tablas_nps, tablas_tmo, user_query=""):
     if not isinstance(tablas_nps, dict) or not isinstance(tablas_tmo, dict):
         return ""
 
-    tablas_sel_nps = seleccionar_tablas_relevantes(tablas_nps, user_query)
-    tablas_sel_tmo = seleccionar_tablas_relevantes(tablas_tmo, user_query)
+    tablas_sel_nps = seleccionar_tablas_relevantes(tablas_nps, user_query, contexto_previo)
+    tablas_sel_tmo = seleccionar_tablas_relevantes(tablas_tmo, user_query, contexto_previo)
 
     bloques = []
     for dim in ["canal", "proveedor", "pcrc", "pcrc_proveedor"]:
@@ -315,28 +343,85 @@ def calcular_tabla_participacion(tablas_nps, tablas_tmo, user_query=""):
         return "=== TABLA CRUZADA PRE-CALCULADA MATEMÁTICA EXACTA: PORCENTAJE DE PARTICIPACIÓN (Q MEDA / Q LLAMADAS) ===\n" + "\n\n".join(bloques)
     return ""
 
-def enrutar_consulta(user_query, modulos_disponibles):
-    """
-    Detecta de forma inteligente qué módulos son relevantes para la consulta del usuario.
-    Permite responder consultas mono-módulo y también consultas multi-módulo cruzadas.
-    """
-    query_lower = user_query.lower()
-    modulos_seleccionados = []
+def normalizar_texto_sin_acentos(texto):
+    # Elimina diacriticos y acentos para comparaciones robustas
+    import unicodedata
+    if not texto:
+        return ""
+    texto = str(texto).lower()
+    return "".join(
+        c for c in unicodedata.normalize('NFD', texto)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+def detectar_modulos_en_texto(texto, modulos_disponibles):
+    # Detecta modulos con coincidencia de palabras clave sin distincion de acentos
+    if not texto:
+        return []
+    texto_norm = normalizar_texto_sin_acentos(texto)
+    mods_detectados = []
 
     for mod in modulos_disponibles:
         kws = mod.get("keywords", [])
-        if any(kw in query_lower for kw in kws):
-            modulos_seleccionados.append(mod["id"])
+        for kw in kws:
+            kw_norm = normalizar_texto_sin_acentos(kw)
+            if kw_norm in texto_norm:
+                if mod["id"] not in mods_detectados:
+                    mods_detectados.append(mod["id"])
+                break
 
-    # Si la consulta pide 'participación' o cruce de encuestas/llamadas, activar NPS y TMO
-    if "participaci" in query_lower or ("encuesta" in query_lower and "llamada" in query_lower):
-        if "nps" not in modulos_seleccionados and any(m["id"] == "nps" for m in modulos_disponibles):
-            modulos_seleccionados.append("nps")
-        if "tmo" not in modulos_seleccionados and any(m["id"] == "tmo" for m in modulos_disponibles):
-            modulos_seleccionados.append("tmo")
+    # Caso especial cruzado: si se menciona participación o encuestas + llamadas
+    if "participaci" in texto_norm or ("encuesta" in texto_norm and "llamada" in texto_norm):
+        if "nps" not in mods_detectados and any(m["id"] == "nps" for m in modulos_disponibles):
+            mods_detectados.append("nps")
+        if "tmo" not in mods_detectados and any(m["id"] == "tmo" for m in modulos_disponibles):
+            mods_detectados.append("tmo")
 
-    # Si no hubo coincidencia específica (ej. saludo, pregunta general del canal), se inyectan todos
-    if not modulos_seleccionados:
-        modulos_seleccionados = [m["id"] for m in modulos_disponibles]
+    return mods_detectados
 
-    return modulos_seleccionados
+def enrutar_consulta(user_query, modulos_disponibles, historial_mensajes=None, ultimo_modulo=None):
+    # Detecta de forma inteligente que modulos son relevantes para la consulta del usuario.
+    # Incorpora MEMORIA CONVERSACIONAL: si la consulta es de seguimiento y no contiene keywords,
+    # hereda estrictamente el contexto del ultimo modulo activo o de turnos previos.
+    todos_ids = [m["id"] for m in modulos_disponibles]
+
+    # 1. Coincidencia en la consulta directa del usuario
+    modulos_seleccionados = detectar_modulos_en_texto(user_query, modulos_disponibles)
+    if modulos_seleccionados:
+        return modulos_seleccionados
+
+    # 2. Si no hay coincidencia directa en la consulta actual:
+    # Caso pregunta de seguimiento / refinamiento ("¿Y en junio?", "segmentado sus proveedores", etc.)
+    # Primero: verificar último módulo activo explícito en sesión
+    if ultimo_modulo:
+        if isinstance(ultimo_modulo, str):
+            ultimo_modulo = [ultimo_modulo]
+        val_ult = [mid for mid in ultimo_modulo if mid in todos_ids]
+        if val_ult and len(val_ult) < len(todos_ids):
+            return val_ult
+
+    # Segundo: buscar en el historial de mensajes de la conversación (del más reciente al más antiguo)
+    if historial_mensajes:
+        for msg in reversed(historial_mensajes):
+            # A) Si el mensaje es del usuario, buscar si mencionó algún módulo
+            if msg.get("role") == "user":
+                c_user = msg.get("content", "")
+                mods_prev = detectar_modulos_en_texto(c_user, modulos_disponibles)
+                if mods_prev and len(mods_prev) < len(todos_ids):
+                    return mods_prev
+            # B) Si el mensaje es del asistente, ver qué módulos usó
+            elif msg.get("role") == "assistant" and msg.get("modulos_usados"):
+                mods_asistente = []
+                for nom_u in msg["modulos_usados"]:
+                    nom_u_norm = normalizar_texto_sin_acentos(nom_u)
+                    for mod in modulos_disponibles:
+                        mid = mod["id"]
+                        mnom = normalizar_texto_sin_acentos(mod.get("nombre", ""))
+                        if mid in nom_u_norm or mnom in nom_u_norm:
+                            if mid not in mods_asistente:
+                                mods_asistente.append(mid)
+                if mods_asistente and len(mods_asistente) < len(todos_ids):
+                    return mods_asistente
+
+    # 3. Si no hubo coincidencia en query ni en historial (ej: saludo, pregunta general del canal):
+    return todos_ids

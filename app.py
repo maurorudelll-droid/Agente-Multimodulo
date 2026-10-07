@@ -245,6 +245,9 @@ if "messages" not in st.session_state:
             }
         ]
 
+if "ultimo_modulo_activo" not in st.session_state:
+    st.session_state.ultimo_modulo_activo = None
+
 # -------------------------------------------------------------
 # 6. ENCABEZADO PRINCIPAL DE LA APLICACIÓN
 # -------------------------------------------------------------
@@ -365,6 +368,8 @@ chat_val = st.chat_input("Escribe tu consulta operativa (NPS, TMO, Transferencia
 user_query = chat_val or st.session_state.pop("consulta_pendiente", None)
 
 if user_query:
+    historial_previo_turnos = list(st.session_state.messages)
+
     st.session_state.messages.append({
         "role": "user",
         "content": user_query,
@@ -383,9 +388,42 @@ if user_query:
         client = None
 
         with st.status(f"🤖 {frase_spinner}", expanded=True) as status_box:
-            # 1. Enrutamiento automático
-            modulos_detectados_ids = gestor_modulos.enrutar_consulta(user_query, modulos)
+            # 1. Enrutamiento automático con memoria conversacional
+            modulos_detectados_ids = gestor_modulos.enrutar_consulta(
+                user_query=user_query,
+                modulos_disponibles=modulos,
+                historial_mensajes=historial_previo_turnos,
+                ultimo_modulo=st.session_state.get("ultimo_modulo_activo")
+            )
+            # Guardar el módulo activo para preguntas de seguimiento
+            st.session_state["ultimo_modulo_activo"] = modulos_detectados_ids
             status_box.write("🔍 **Enrutando consulta:** Identificando bases de datos y dimensiones...")
+
+            # Construir texto de contexto previo para preservar filtros de entidades (PCRC/Proveedor)
+            contexto_previo_txt = ""
+            if historial_previo_turnos:
+                ult_user_msgs = [m.get("content", "") for m in historial_previo_turnos if m.get("role") == "user"]
+                if ult_user_msgs:
+                    contexto_previo_txt = ult_user_msgs[-1]
+
+            # Construir historial conversacional reciente para Gemini (últimos 4 mensajes)
+            historial_conversacion_txt = ""
+            if historial_previo_turnos:
+                ultimos_msgs = [m for m in historial_previo_turnos if m.get("content")][-4:]
+                lineas_h = []
+                for m in ultimos_msgs:
+                    rol = "Usuario" if m.get("role") == "user" else "Asistente"
+                    c = (m.get("content") or "").strip()
+                    if m.get("role") == "assistant":
+                        primeras = [l.strip() for l in c.split("\n") if l.strip() and not l.startswith("| :---")][:4]
+                        c_res = " | ".join(primeras)
+                        if len(c_res) > 350:
+                            c_res = c_res[:350] + "..."
+                        lineas_h.append(f"{rol}: {c_res}")
+                    else:
+                        lineas_h.append(f"{rol}: {c}")
+                if lineas_h:
+                    historial_conversacion_txt = "\n".join(lineas_h)
             
             # 2. Cargar datos y prompts de los módulos involucrados de forma optimizada
             contextos_tablas = []
@@ -398,7 +436,12 @@ if user_query:
                     tablas_dict, meta = gestor_modulos.cargar_tablas_modulo(mid)
                     if tablas_dict is not None:
                         tablas_por_modulo[mid] = tablas_dict
-                        txt_tablas = gestor_modulos.generar_contexto_modulo(mod_info, tablas_dict, user_query)
+                        txt_tablas = gestor_modulos.generar_contexto_modulo(
+                            mod_info,
+                            tablas_dict,
+                            user_query=user_query,
+                            contexto_previo=contexto_previo_txt
+                        )
                         cfg = mod_info["config"]
                         nombres_modulos.append(f"{cfg.get('icono', '')} {cfg.get('nombre', mid)}")
                         contextos_tablas.append(f"=== BASE DE DATOS / MÓDULO: {cfg.get('nombre', mid).upper()} ===\n{txt_tablas}")
@@ -406,7 +449,12 @@ if user_query:
 
             # Si están involucrados NPS y TMO (o la consulta menciona participación), inyectar cálculo exacto cruzado
             if "nps" in tablas_por_modulo and "tmo" in tablas_por_modulo:
-                txt_part = gestor_modulos.calcular_tabla_participacion(tablas_por_modulo["nps"], tablas_por_modulo["tmo"], user_query)
+                txt_part = gestor_modulos.calcular_tabla_participacion(
+                    tablas_por_modulo["nps"],
+                    tablas_por_modulo["tmo"],
+                    user_query=user_query,
+                    contexto_previo=contexto_previo_txt
+                )
                 if txt_part:
                     contextos_tablas.append(txt_part)
 
@@ -434,16 +482,20 @@ REGLAS GENERALES:
      * Si piden "SPL 7D", muestra ÚNICAMENTE: | Periodo | %SPL 7 Días |. NO agregues 30m ni 48hs.
      * Si piden "Transferencias 1L", muestra ÚNICAMENTE: | Periodo | Tasa 1L |. NO agregues 2L ni Totales ni Retención.
      * Si piden "Porcentaje de Participación" (o "% Participación"), muestra ÚNICAMENTE: | Periodo | (Dimensión) | % Participación | (o agrega Q Meda y Q Llamadas solo si solicitan los totales).
-3. FILTRADO TEMPORAL Y SEGMENTAL ESTRICTO:
-   - Si el usuario solicita un rango de meses o periodo específico (ej: "de Mayo a Septiembre del 2026"), filtra y devuelve ÚNICAMENTE los datos correspondientes a esos meses. No incluyas meses fuera del rango.
+3. CONTINUIDAD TEMÁTICA ESTRICTA EN PREGUNTAS DE SEGUIMIENTO:
+   - Si la consulta del usuario es un refinamiento, seguimiento o filtro temporal/segmental (ej: "En los periodos Junio, Julio y Agosto, segmentado sus proveedores", "¿Y para Apex?", "¿Cómo fue en julio?", etc.) donde NO menciona explícitamente una nueva métrica, DEBES CONTINUAR ESTRICTAMENTE con la misma métrica y base tratada en los turnos previos de la conversación.
+   - NUNCA cambies de métrica arbitrariamente (por ejemplo, si venías respondiendo Transferencias, NO respondas con NPS ni TMO). Mantén la coherencia temática absoluta.
+4. FILTRADO TEMPORAL Y SEGMENTAL ESTRICTO:
+   - Si el usuario solicita un rango de meses o periodo específico (ej: "de Mayo a Septiembre del 2026", "Junio, Julio y Agosto"), filtra y devuelve ÚNICAMENTE los datos correspondientes a esos meses. No incluyas meses fuera del rango.
    - Si pide un PCRC o Proveedor específico, filtra y devuelve ÚNICAMENTE ese PCRC o Proveedor.
-4. FORMATO ESTRICTO DE TABLA MARKDOWN:
+   - Si pide segmentado por proveedores, muestra los proveedores para los periodos solicitados.
+5. FORMATO ESTRICTO DE TABLA MARKDOWN:
    - CADA FILA DEBE ESTAR OBLIGATORIAMENTE EN UNA LÍNEA NUEVA SEPARADA POR SALTO DE LÍNEA (\\n).
    - NUNCA comprimas múltiples filas en una sola línea ni uses '||'.
    - Incluye SIEMPRE la línea separadora de columnas después del encabezado (| :--- | :--- | :--- |).
    - Escribe todas las filas con sus datos correspondientes de manera estándar y completa (una fila por línea). El post-procesador de la app se encarga de suprimir limpiamente los duplicados consecutivos.
    - En la columna Periodo, utiliza siempre el nombre completo en español (ej: "Mayo 2026", "Junio 2026"), nunca números tipo "2026-05".
-5. SEMAFORIZACIÓN EJECUTIVA OBLIGATORIA (🟢 MEJOR Y 🔴 PEOR VALOR):
+6. SEMAFORIZACIÓN EJECUTIVA OBLIGATORIA (🟢 MEJOR Y 🔴 PEOR VALOR):
    - En la columna de la métrica consultada (para cada Periodo o grupo analizado en la tabla), agrega obligatoriamente:
      * Un círculo verde (🟢) al lado del MEJOR valor (ej: "412s 🟢" o "78.5% 🟢").
      * Un círculo rojo (🔴) al lado del PEOR valor (ej: "451s 🔴" o "45.8% 🔴").
@@ -453,7 +505,7 @@ REGLAS GENERALES:
      * %NPS y Satisfacción: Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
      * %SPL y Resolución: Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
      * %Participación (Q Meda / Q Llamadas): Mayor porcentaje es MEJOR (🟢 para el mayor %, 🔴 para el menor %).
-6. CÁLCULO DE MÉTRICA CRUZADA - "PORCENTAJE DE PARTICIPACIÓN":
+7. CÁLCULO DE MÉTRICA CRUZADA - "PORCENTAJE DE PARTICIPACIÓN":
    - Cuando el usuario consulte el "Porcentaje de participación" (o "% Participación", "participación de encuestas"):
      * DEFINICIÓN: Es la cantidad de participación de encuestas por cantidad de llamadas atendidas.
      * COMPONENTES:
@@ -462,8 +514,8 @@ REGLAS GENERALES:
      * FÓRMULA MATEMÁTICA EXACTA: (Q MEDA / Q Llamadas) * 100.
      * Se expresa siempre en porcentaje con 1 decimal (ejemplo: "2.6%").
      * Utiliza directamente los datos matemáticos pre-calculados en la tabla cruzada provista.
-7. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
-8. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en negrita:
+8. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
+9. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en negrita:
    ### **BLOQUE 1: Datos Operativos**
    (Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados: % con 1 decimal, tiempos enteros con 's', periodo en español, y semáforos 🟢 / 🔴 en los valores extremos. Cada fila en una línea nueva separada por \\n).
 
@@ -472,7 +524,7 @@ REGLAS GENERALES:
 
    ### **BLOQUE 3: Trazabilidad**
    (Filtros aplicados, Nivel de agregación, Bases consultadas: {', '.join(nombres_modulos)}).
-9. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
+10. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
 
 DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
 """ + "\n\n".join(instrucciones_modulos)
@@ -485,7 +537,8 @@ DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
                         client=client,
                         system_prompt=system_prompt_maestro,
                         contexto_datos=contexto_datos_unificado,
-                        user_query=user_query
+                        user_query=user_query,
+                        historial_conversacion=historial_conversacion_txt
                     )
 
                 if respuesta_texto:

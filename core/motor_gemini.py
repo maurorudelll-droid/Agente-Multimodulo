@@ -277,23 +277,19 @@ def consultar_gemini(client, system_prompt, contexto_datos, user_query, modelos=
     ultimo_error = None
 
     for mod in modelos:
-        for intento in range(2):
-            try:
-                response = client.models.generate_content(
-                    model=mod,
-                    contents=prompt_completo,
-                )
-                if response and response.text:
-                    answer = response.text
-                    break
-            except Exception as err:
-                ultimo_error = err
-                err_msg = str(err).lower()
-                if "404" in err_msg or "not found" in err_msg:
-                    break
-                time.sleep(1.0)
-        if answer:
-            break
+        try:
+            response = client.models.generate_content(
+                model=mod,
+                contents=prompt_completo,
+            )
+            if response and response.text:
+                answer = response.text
+                break
+        except Exception as err:
+            ultimo_error = err
+            err_msg = str(err).lower()
+            # Si el modelo no existe (404) o está saturado (503), pasar de inmediato al siguiente modelo
+            continue
 
     if not answer:
         err_str = str(ultimo_error) if ultimo_error else "Error desconocido al invocar Gemini."

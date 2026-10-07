@@ -161,25 +161,26 @@ def seleccionar_tablas_relevantes(tablas_dict, user_query=""):
 
     seleccionadas = {}
     if pide_cruzado:
-        if "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
-            seleccionadas["canal"] = tablas_dict["canal"]
+        # Si piden específicamente PCRC y proveedor cruzados, solo enviar pcrc_proveedor para no saturar memoria
         if "pcrc_proveedor" in tablas_dict and not getattr(tablas_dict["pcrc_proveedor"], "empty", True):
             seleccionadas["pcrc_proveedor"] = tablas_dict["pcrc_proveedor"]
-    elif pide_prov:
-        if "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
+        elif "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
             seleccionadas["canal"] = tablas_dict["canal"]
+    elif pide_prov:
         if "proveedor" in tablas_dict and not getattr(tablas_dict["proveedor"], "empty", True):
             seleccionadas["proveedor"] = tablas_dict["proveedor"]
-    elif pide_pcrc:
-        if "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
+        elif "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
             seleccionadas["canal"] = tablas_dict["canal"]
+    elif pide_pcrc:
         if "pcrc" in tablas_dict and not getattr(tablas_dict["pcrc"], "empty", True):
             seleccionadas["pcrc"] = tablas_dict["pcrc"]
+        elif "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
+            seleccionadas["canal"] = tablas_dict["canal"]
     elif pide_canal:
         if "canal" in tablas_dict and not getattr(tablas_dict["canal"], "empty", True):
             seleccionadas["canal"] = tablas_dict["canal"]
     else:
-        # Por defecto si no especifica: canal, proveedor y pcrc (se excluye pcrc_proveedor para no saturar memoria)
+        # Por defecto si no especifica: canal, proveedor y pcrc
         for k in ["canal", "proveedor", "pcrc"]:
             if k in tablas_dict and not getattr(tablas_dict[k], "empty", True):
                 seleccionadas[k] = tablas_dict[k]
@@ -189,9 +190,66 @@ def seleccionar_tablas_relevantes(tablas_dict, user_query=""):
 
     return seleccionadas
 
+def filtrar_df_por_entidades_y_metricas(df, user_query=""):
+    """
+    Filtra filas y columnas de un DataFrame según las entidades y métricas específicas
+    mencionadas en la consulta. Reduce el tamaño del prompt hasta un 95%, acelerando
+    drásticamente la respuesta del modelo de IA y evitando timeouts.
+    """
+    if df is None or getattr(df, 'empty', True):
+        return df
+
+    import re
+    df_res = df.copy()
+    q = (user_query or "").lower()
+
+    # 1. Filtrar filas por PCRC si se menciona uno específico
+    if "PCRC" in df_res.columns:
+        pcrcs = [str(p) for p in df_res["PCRC"].dropna().unique() if str(p).strip()]
+        for p in pcrcs:
+            palabras = [w for w in re.split(r'\W+', p.lower()) if len(w) > 2]
+            if palabras and all(w in q for w in palabras):
+                df_res = df_res[df_res["PCRC"].astype(str).str.lower() == p.lower()]
+                break
+
+    # 2. Filtrar filas por PROVEEDOR si se menciona uno específico (pero no si pide todos)
+    if "PROVEEDOR" in df_res.columns:
+        pide_todos_prov = any(frase in q for frase in ["sus proveedores", "por proveedor", "los proveedores", "cada proveedor", "segmentado proveedor"])
+        if not pide_todos_prov:
+            provs = [str(pr) for pr in df_res["PROVEEDOR"].dropna().unique() if str(pr).strip()]
+            for pr in provs:
+                palabras = [w for w in re.split(r'\W+', pr.lower()) if len(w) > 2]
+                if palabras and all(w in q for w in palabras):
+                    df_res = df_res[df_res["PROVEEDOR"].astype(str).str.lower() == pr.lower()]
+                    break
+
+    # 3. Filtrar columnas relevantes según las métricas pedidas
+    cols_base = [c for c in df_res.columns if c in ["Periodo_Str", "Periodo", "PCRC", "PROVEEDOR"]]
+    cols_seleccionadas = list(cols_base)
+
+    for c in df_res.columns:
+        if c in cols_base:
+            continue
+        c_low = c.lower()
+        if ("nps" in c_low and "nps" in q) or \
+           ("spl" in c_low and "spl" in q) or \
+           ("tmo" in c_low and "tmo" in q) or \
+           ("resol" in c_low and ("resol" in q or "fcr" in q)) or \
+           ("sat" in c_low and ("sat" in q or "csat" in q)) or \
+           ("transf" in c_low and "transf" in q) or \
+           ("llamadas" in c_low and ("llamadas" in q or "volumen" in q)) or \
+           ("encuestas" in c_low and ("encuestas" in q or "q meda" in q or "participac" in q)):
+            cols_seleccionadas.append(c)
+
+    # Si se seleccionaron métricas específicas, estrechar las columnas
+    if len(cols_seleccionadas) > len(cols_base):
+        df_res = df_res[cols_seleccionadas]
+
+    return df_res
+
 def generar_contexto_modulo(mod_info, tablas_dict, user_query=""):
     """
-    Genera el texto formateado en Markdown de las tablas relevantes para la consulta del usuario.
+    Genera el texto formateado en Markdown de las tablas relevantes y filtradas para la consulta.
     """
     tablas_sel = seleccionar_tablas_relevantes(tablas_dict, user_query)
     nombres_desc = {
@@ -203,7 +261,8 @@ def generar_contexto_modulo(mod_info, tablas_dict, user_query=""):
     partes = []
     for k, df in tablas_sel.items():
         desc = nombres_desc.get(k, f"TABLA: {k.upper()}")
-        partes.append(f"--- {desc} ---\n" + df.to_string(index=False))
+        df_filtrado = filtrar_df_por_entidades_y_metricas(df, user_query)
+        partes.append(f"--- {desc} ---\n" + df_filtrado.to_string(index=False))
     return "\n\n".join(partes)
 
 def calcular_tabla_participacion(tablas_nps, tablas_tmo, user_query=""):

@@ -387,7 +387,14 @@ def agregar_df_temporalmente(df, user_query="", contexto_previo=""):
     q_ctx = (contexto_previo or "").lower()
     q_check = q_u if any(w in q_u for w in ["anual", "año", "ano", "trimestr", "q1", "q2", "q3", "q4", "promedio anual"]) else f"{q_ctx} {q_u}"
 
-    # Si se piden meses específicos sin mencionar anual ni trimestral, no agregar
+    # Si se pide explícitamente desglose mensual o meses específicos, no consolidar
+    pide_mensual_explicito = any(w in q_u for w in [
+        "todos los meses", "mes a mes", "cada mes", "por mes", "evolutivo mensual", 
+        "desglose mensual", "desglosado por mes", "mes por mes", "mensual", "mensualmente"
+    ])
+    if pide_mensual_explicito:
+        return df
+
     meses_nombres = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
     if any(m in q_u for m in meses_nombres) and not any(w in q_u for w in ["anual", "año", "ano", "trimestr", "q1", "q2", "q3", "q4", "promedio anual"]):
         return df

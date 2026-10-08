@@ -487,7 +487,8 @@ def generar_contexto_modulo(mod_info, tablas_dict, user_query="", contexto_previ
         df_filtrado = filtrar_filas_por_entidades(df, user_query, contexto_previo)
         df_filtrado = agregar_df_temporalmente(df_filtrado, user_query, contexto_previo)
         df_filtrado = filtrar_columnas_por_metricas(df_filtrado, user_query, contexto_previo)
-        partes.append(f"--- {desc} ---\n" + df_filtrado.to_string(index=False))
+        df_mostrar = df_filtrado.rename(columns={"Periodo_Str": "Periodo", "TMO_Total": "TMO Total"})
+        partes.append(f"--- {desc} ---\n" + df_mostrar.to_string(index=False))
     return "\n\n".join(partes)
 
 def calcular_tabla_participacion(tablas_nps, tablas_tmo, user_query="", contexto_previo=""):

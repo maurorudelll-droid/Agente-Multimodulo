@@ -3,6 +3,8 @@ import re
 import streamlit as st
 from datetime import datetime
 
+# Version 2.2 - Agregacion Anual y Trimestral consolidada
+
 # -------------------------------------------------------------
 # 1. CONFIGURACIÓN DE PÁGINA Y ESTILO
 # -------------------------------------------------------------
@@ -528,24 +530,16 @@ REGLAS GENERALES:
      * Utiliza directamente los datos matemáticos pre-calculados en la tabla cruzada provista.
 8. AGREGACIÓN ANUAL (MÉTRICA ANUAL / PROMEDIO ANUAL / DE TODO EL AÑO):
    - Si la consulta solicita una "métrica Anual", "Promedio anual", "de todo el año", "anual 2026" o expresiones equivalentes, indica que se solicita calcular la métrica de todo el año como si fuera un único período consolidado.
-   - Procedimiento de cálculo:
-     * Consolida todos los datos de todos los meses contemplados en el año solicitado que figuren en las tablas provistas.
-     * Calcula la métrica correspondiente para ese año completo:
-       - Para métricas porcentuales o ratios (%NPS, %SPL, %Transferencias, %Resolución, %Participación): calcula la tasa consolidada ponderando por el volumen correspondiente (Q Meda/Encuestas para NPS; Llamadas Válidas/Atendidas para TMO, SPL y Transferencias) o el promedio directo de los meses disponibles si no hay volumen explícito.
-       - Para tiempos operativos (TMO Total, TT, Hold, ACW): calcula el promedio ponderado por el volumen de llamadas del año (o el promedio directo de los meses).
-     * En el BLOQUE 1 (Tabla Markdown), en la columna Periodo, muestra el período como "Año 2026" (o el año solicitado), presentando una única fila por entidad/proveedor/canal (no desgloses mes a mes, salvo que el usuario lo pida expresamente).
-     * Si la consulta es por proveedor o PCRC, calcula y muestra la fila consolidada de todo el año para cada proveedor o PCRC analizado.
+   - REGLA DE ORO: ESTÁ TERMINANTEMENTE PROHIBIDO desglosar mes a mes (Enero, Febrero, Marzo, etc.) cuando se solicita una métrica anual. La tabla del BLOQUE 1 debe contener EXCLUSIVAMENTE la fila consolidada "Año 2026" (o 1 fila consolidada por proveedor/PCRC con Periodo "Año 2026"). Cero filas mensuales.
+   - Utiliza directamente los datos matemáticos pre-consolidados de las tablas provistas en el contexto.
 9. AGREGACIÓN TRIMESTRAL (MÉTRICAS POR TRIMESTRE / Q1, Q2, Q3, Q4):
-   - Ante una solicitud de métrica trimestral ("trimestre", "trimestral", "primer trimestre", "segundo trimestre", "tercer trimestre", "cuarto trimestre", "Q1", "Q2", "Q3", "Q4"), agrupa y suma/consolida los meses correspondientes para calcular la métrica como si fuera 1 solo período.
+   - Ante una solicitud de métrica trimestral ("trimestre", "trimestral", "primer trimestre", "segundo trimestre", "tercer trimestre", "cuarto trimestre", "Q1", "Q2", "Q3", "Q4"), se solicita la métrica agrupada como un único período.
+   - REGLA DE ORO: ESTÁ TERMINANTEMENTE PROHIBIDO incluir meses individuales cuando se pide métrica trimestral. Muestra EXCLUSIVAMENTE la fila consolidada del trimestre solicitado (ej: "Primer Trimestre 2026"), o una fila por cada trimestre consolidado si solicitaron todos los trimestres.
    - DEFINICIÓN Y COMPOSICIÓN ESTRICTA DE TRIMESTRES:
      * Primer Trimestre (1T / Q1): Enero, Febrero y Marzo.
      * Segundo Trimestre (2T / Q2): Abril, Mayo y Junio.
      * Tercer Trimestre (3T / Q3): Julio, Agosto y Septiembre.
      * Cuarto Trimestre (4T / Q4): Octubre, Noviembre y Diciembre.
-   - Procedimiento de cálculo:
-     * Agrupa y consolida los 3 meses del trimestre solicitado calculando la métrica representativa de ese trimestre como un período único.
-     * En el BLOQUE 1 (Tabla Markdown), en la columna Periodo, utiliza el nombre formal del trimestre (ej: "Primer Trimestre 2026", "Segundo Trimestre 2026", "Tercer Trimestre 2026", "Cuarto Trimestre 2026").
-     * Si el usuario pide un evolutivo de trimestres (ej: "todos los trimestres" o "comparativa trimestral"), genera una fila por cada trimestre consolidado (Primer Trimestre, Segundo Trimestre, etc.) con sus respectivas métricas consolidadas.
 10. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
 11. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en negrita:
    ### **BLOQUE 1: Datos Operativos**

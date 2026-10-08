@@ -195,12 +195,8 @@ def seleccionar_tablas_relevantes(tablas_dict, user_query="", contexto_previo=""
 
     return seleccionadas
 
-def filtrar_df_por_entidades_y_metricas(df, user_query="", contexto_previo=""):
-    """
-    Filtra filas y columnas de un DataFrame según las entidades y métricas específicas
-    mencionadas en la consulta o heredadas del contexto conversacional previo.
-    Reduce el tamaño del prompt hasta un 95%, acelerando la respuesta y evitando timeouts.
-    """
+def filtrar_filas_por_entidades(df, user_query="", contexto_previo=""):
+    """Filtra filas por PCRC o PROVEEDOR si se especifica uno concreto."""
     if df is None or getattr(df, 'empty', True):
         return df
 
@@ -249,12 +245,21 @@ def filtrar_df_por_entidades_y_metricas(df, user_query="", contexto_previo=""):
             if prov_encontrado:
                 df_res = df_res[df_res["PROVEEDOR"].astype(str).str.lower() == prov_encontrado.lower()]
 
-    # 3. Filtrar columnas relevantes según las métricas pedidas
+    return df_res
+
+def filtrar_columnas_por_metricas(df, user_query="", contexto_previo=""):
+    """Estrecha las columnas según las métricas solicitadas en la consulta."""
+    if df is None or getattr(df, 'empty', True):
+        return df
+
+    df_res = df.copy()
+    q = (user_query or "").lower()
+    q_ctx = ((contexto_previo or "") + " " + q).lower()
+
     cols_base = [c for c in df_res.columns if c in ["Periodo_Str", "Periodo", "PCRC", "PROVEEDOR"]]
     cols_seleccionadas = list(cols_base)
 
     q_metricas = q if any(m in q for m in ["nps", "spl", "tmo", "transf", "1l", "2l", "resol", "sat", "llamadas", "encuestas"]) else q_ctx
-    pide_agregacion = any(w in q_metricas for w in ["anual", "ano", "año", "trimestr", "q1", "q2", "q3", "q4", "promedio", "acumulado", "consolidado"])
 
     for c in df_res.columns:
         if c in cols_base:
@@ -266,15 +271,204 @@ def filtrar_df_por_entidades_y_metricas(df, user_query="", contexto_previo=""):
            ("resol" in c_low and ("resol" in q_metricas or "fcr" in q_metricas)) or \
            ("sat" in c_low and ("sat" in q_metricas or "csat" in q_metricas)) or \
            ("transf" in c_low and ("transf" in q_metricas or "1l" in q_metricas or "2l" in q_metricas)) or \
-           ("llamadas" in c_low and ("llamadas" in q_metricas or "volumen" in q_metricas or pide_agregacion)) or \
-           ("encuestas" in c_low and ("encuestas" in q_metricas or "q meda" in q_metricas or "participac" in q_metricas or pide_agregacion)):
+           ("llamadas" in c_low and ("llamadas" in q_metricas or "volumen" in q_metricas)) or \
+           ("encuestas" in c_low and ("encuestas" in q_metricas or "q meda" in q_metricas or "participac" in q_metricas)):
             cols_seleccionadas.append(c)
 
-    # Si se seleccionaron métricas específicas, estrechar las columnas
     if len(cols_seleccionadas) > len(cols_base):
         df_res = df_res[cols_seleccionadas]
 
     return df_res
+
+def filtrar_df_por_entidades_y_metricas(df, user_query="", contexto_previo=""):
+    """Filtra filas y columnas de un DataFrame según las entidades y métricas específicas."""
+    df_filas = filtrar_filas_por_entidades(df, user_query, contexto_previo)
+    return filtrar_columnas_por_metricas(df_filas, user_query, contexto_previo)
+
+def consolidar_bloque_df(sub_df, etiqueta, dim_cols):
+    """Consolida un grupo de filas calculando matemáticamente las métricas ponderadas."""
+    if sub_df is None or sub_df.empty:
+        return pd.DataFrame()
+
+    filas = []
+    if dim_cols:
+        grupos = sub_df.groupby(dim_cols, as_index=False)
+        for _, sub in grupos:
+            r = {'Periodo_Str': etiqueta}
+            for d in dim_cols:
+                r[d] = sub[d].iloc[0]
+
+            vol_col = None
+            for vc in ['Encuestas_Total', 'Llamadas_Validas', 'Llamadas_Atendidas_SPL']:
+                if vc in sub.columns:
+                    vol_col = vc
+                    break
+
+            for c in sub.columns:
+                if c in ['Periodo_Str', 'Periodo', 'Periodo_DT'] + dim_cols:
+                    continue
+                if c in ['Encuestas_Total', 'Llamadas_Validas', 'Llamadas_Atendidas_SPL', 'Q_Promotores', 'Q_Detractores', 'Q_Neutros', 'Q_Resueltas', 'Q_Transferidas', 'Reiteradas_30min', 'Reiteradas_48hs', 'Reiteradas_7dias']:
+                    r[c] = int(sub[c].sum())
+                elif c == 'NPS' and 'Q_Promotores' in sub.columns and 'Encuestas_Total' in sub.columns:
+                    tot_e = sub['Encuestas_Total'].sum()
+                    val = round(((sub['Q_Promotores'].sum() - sub['Q_Detractores'].sum()) / tot_e) * 100, 1) if tot_e > 0 else 0.0
+                    r[c] = f'{val}%'
+                elif c in ['TMO_Total'] or c.startswith('Tiempo_'):
+                    nums = sub[c].astype(str).str.replace('s', '', regex=False).str.replace('%', '', regex=False).astype(float)
+                    if vol_col and sub[vol_col].sum() > 0:
+                        val = int(round((nums * sub[vol_col]).sum() / sub[vol_col].sum()))
+                    else:
+                        val = int(round(nums.mean()))
+                    r[c] = f'{val}s'
+                elif c.endswith('%'):
+                    nums = sub[c].astype(str).str.replace('%', '', regex=False).str.replace('s', '', regex=False).astype(float)
+                    if vol_col and sub[vol_col].sum() > 0:
+                        val = round((nums * sub[vol_col]).sum() / sub[vol_col].sum(), 1)
+                    else:
+                        val = round(nums.mean(), 1)
+                    r[c] = f'{val}%'
+                elif c == 'Horas_Disponibles':
+                    nums = sub[c].astype(str).str.replace('h', '', regex=False).astype(float)
+                    r[c] = f'{round(nums.sum(), 1)}h'
+                else:
+                    r[c] = sub[c].iloc[0]
+            filas.append(r)
+    else:
+        sub = sub_df
+        r = {'Periodo_Str': etiqueta}
+        vol_col = None
+        for vc in ['Encuestas_Total', 'Llamadas_Validas', 'Llamadas_Atendidas_SPL']:
+            if vc in sub.columns:
+                vol_col = vc
+                break
+        for c in sub.columns:
+            if c in ['Periodo_Str', 'Periodo', 'Periodo_DT']:
+                continue
+            if c in ['Encuestas_Total', 'Llamadas_Validas', 'Llamadas_Atendidas_SPL', 'Q_Promotores', 'Q_Detractores', 'Q_Neutros', 'Q_Resueltas', 'Q_Transferidas', 'Reiteradas_30min', 'Reiteradas_48hs', 'Reiteradas_7dias']:
+                r[c] = int(sub[c].sum())
+            elif c == 'NPS' and 'Q_Promotores' in sub.columns and 'Encuestas_Total' in sub.columns:
+                tot_e = sub['Encuestas_Total'].sum()
+                val = round(((sub['Q_Promotores'].sum() - sub['Q_Detractores'].sum()) / tot_e) * 100, 1) if tot_e > 0 else 0.0
+                r[c] = f'{val}%'
+            elif c in ['TMO_Total'] or c.startswith('Tiempo_'):
+                nums = sub[c].astype(str).str.replace('s', '', regex=False).str.replace('%', '', regex=False).astype(float)
+                if vol_col and sub[vol_col].sum() > 0:
+                    val = int(round((nums * sub[vol_col]).sum() / sub[vol_col].sum()))
+                else:
+                    val = int(round(nums.mean()))
+                r[c] = f'{val}s'
+            elif c.endswith('%'):
+                nums = sub[c].astype(str).str.replace('%', '', regex=False).str.replace('s', '', regex=False).astype(float)
+                if vol_col and sub[vol_col].sum() > 0:
+                    val = round((nums * sub[vol_col]).sum() / sub[vol_col].sum(), 1)
+                else:
+                    val = round(nums.mean(), 1)
+                r[c] = f'{val}%'
+            elif c == 'Horas_Disponibles':
+                nums = sub[c].astype(str).str.replace('h', '', regex=False).astype(float)
+                r[c] = f'{round(nums.sum(), 1)}h'
+            else:
+                r[c] = sub[c].iloc[0]
+        filas.append(r)
+    return pd.DataFrame(filas)
+
+def agregar_df_temporalmente(df, user_query="", contexto_previo=""):
+    """
+    Consolida filas temporalmente cuando el usuario solicita una agregación Anual o Trimestral.
+    Si se solicita 'anual' / 'todo el año', agrupa todos los meses en una fila 'Año 2026'.
+    Si se solicita un trimestre específico (Q1, Q2, Q3, Q4), agrupa los 3 meses correspondientes.
+    Si se solicita 'trimestral', genera una fila consolidada por cada trimestre.
+    """
+    if df is None or getattr(df, 'empty', True) or "Periodo_Str" not in df.columns:
+        return df
+
+    import re
+    q_u = (user_query or "").lower()
+    q_ctx = (contexto_previo or "").lower()
+    q_check = q_u if any(w in q_u for w in ["anual", "año", "ano", "trimestr", "q1", "q2", "q3", "q4", "promedio anual"]) else f"{q_ctx} {q_u}"
+
+    # Si se piden meses específicos sin mencionar anual ni trimestral, no agregar
+    meses_nombres = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    if any(m in q_u for m in meses_nombres) and not any(w in q_u for w in ["anual", "año", "ano", "trimestr", "q1", "q2", "q3", "q4", "promedio anual"]):
+        return df
+
+    pide_q1 = any(w in q_check for w in ["primer trimestre", "1er trimestre", "1° trimestre", "trimestre 1", "q1", "1t"])
+    pide_q2 = any(w in q_check for w in ["segundo trimestre", "2do trimestre", "2° trimestre", "trimestre 2", "q2", "2t"])
+    pide_q3 = any(w in q_check for w in ["tercer trimestre", "3er trimestre", "3° trimestre", "trimestre 3", "q3", "3t"])
+    pide_q4 = any(w in q_check for w in ["cuarto trimestre", "4to trimestre", "4° trimestre", "trimestre 4", "q4", "4t"])
+    pide_trimestral_all = any(w in q_check for w in ["trimestral", "trimestres", "por trimestre", "cada trimestre", "todos los trimestres", "evolutivo trimestral"]) and not (pide_q1 or pide_q2 or pide_q3 or pide_q4)
+    pide_anual = any(w in q_check for w in ["anual", "todo el año", "de todo el ano", "todo el ano", "de todo el año", "del año", "del ano", "promedio anual", "acumulado anual"])
+
+    if not (pide_anual or pide_q1 or pide_q2 or pide_q3 or pide_q4 or pide_trimestral_all):
+        return df
+
+    if 'PCRC' in df.columns and 'PROVEEDOR' in df.columns:
+        dim_cols = ['PCRC', 'PROVEEDOR']
+    elif 'PROVEEDOR' in df.columns:
+        dim_cols = ['PROVEEDOR']
+    elif 'PCRC' in df.columns:
+        dim_cols = ['PCRC']
+    else:
+        dim_cols = []
+
+    match_ano = re.search(r'(20\d\d)', " ".join(df['Periodo_Str'].astype(str).unique()))
+    ano_str = match_ano.group(1) if match_ano else "2026"
+
+    trimestres_map = [
+        ("Primer Trimestre " + ano_str, ["-01", "-02", "-03", "enero", "febrero", "marzo"]),
+        ("Segundo Trimestre " + ano_str, ["-04", "-05", "-06", "abril", "mayo", "junio"]),
+        ("Tercer Trimestre " + ano_str, ["-07", "-08", "-09", "julio", "agosto", "septiembre"]),
+        ("Cuarto Trimestre " + ano_str, ["-10", "-11", "-12", "octubre", "noviembre", "diciembre"]),
+    ]
+
+    dfs_res = []
+
+    if pide_anual:
+        df_ano = consolidar_bloque_df(df, f"Año {ano_str}", dim_cols)
+        if not df_ano.empty:
+            dfs_res.append(df_ano)
+    elif pide_q1:
+        mask = df['Periodo_Str'].astype(str).str.lower().apply(lambda s: any(pat in s for pat in trimestres_map[0][1]))
+        sub = df[mask]
+        df_q = consolidar_bloque_df(sub if not sub.empty else df, trimestres_map[0][0], dim_cols)
+        if not df_q.empty:
+            dfs_res.append(df_q)
+    elif pide_q2:
+        mask = df['Periodo_Str'].astype(str).str.lower().apply(lambda s: any(pat in s for pat in trimestres_map[1][1]))
+        sub = df[mask]
+        df_q = consolidar_bloque_df(sub if not sub.empty else df, trimestres_map[1][0], dim_cols)
+        if not df_q.empty:
+            dfs_res.append(df_q)
+    elif pide_q3:
+        mask = df['Periodo_Str'].astype(str).str.lower().apply(lambda s: any(pat in s for pat in trimestres_map[2][1]))
+        sub = df[mask]
+        df_q = consolidar_bloque_df(sub if not sub.empty else df, trimestres_map[2][0], dim_cols)
+        if not df_q.empty:
+            dfs_res.append(df_q)
+    elif pide_q4:
+        mask = df['Periodo_Str'].astype(str).str.lower().apply(lambda s: any(pat in s for pat in trimestres_map[3][1]))
+        sub = df[mask]
+        df_q = consolidar_bloque_df(sub if not sub.empty else df, trimestres_map[3][0], dim_cols)
+        if not df_q.empty:
+            dfs_res.append(df_q)
+    elif pide_trimestral_all:
+        for etiq, pats in trimestres_map:
+            mask = df['Periodo_Str'].astype(str).str.lower().apply(lambda s: any(pat in s for pat in pats))
+            sub = df[mask]
+            if not sub.empty:
+                df_q = consolidar_bloque_df(sub, etiq, dim_cols)
+                if not df_q.empty:
+                    dfs_res.append(df_q)
+
+    if dfs_res:
+        df_final = pd.concat(dfs_res, ignore_index=True)
+        cols_orden = [c for c in df.columns if c in df_final.columns]
+        for c in df_final.columns:
+            if c not in cols_orden:
+                cols_orden.append(c)
+        return df_final[cols_orden]
+
+    return df
 
 def generar_contexto_modulo(mod_info, tablas_dict, user_query="", contexto_previo=""):
     """
@@ -290,7 +484,9 @@ def generar_contexto_modulo(mod_info, tablas_dict, user_query="", contexto_previ
     partes = []
     for k, df in tablas_sel.items():
         desc = nombres_desc.get(k, f"TABLA: {k.upper()}")
-        df_filtrado = filtrar_df_por_entidades_y_metricas(df, user_query, contexto_previo)
+        df_filtrado = filtrar_filas_por_entidades(df, user_query, contexto_previo)
+        df_filtrado = agregar_df_temporalmente(df_filtrado, user_query, contexto_previo)
+        df_filtrado = filtrar_columnas_por_metricas(df_filtrado, user_query, contexto_previo)
         partes.append(f"--- {desc} ---\n" + df_filtrado.to_string(index=False))
     return "\n\n".join(partes)
 
@@ -307,6 +503,10 @@ def calcular_tabla_participacion(tablas_nps, tablas_tmo, user_query="", contexto
 
     tablas_sel_nps = seleccionar_tablas_relevantes(tablas_nps, user_query, contexto_previo)
     tablas_sel_tmo = seleccionar_tablas_relevantes(tablas_tmo, user_query, contexto_previo)
+
+    # Aplicar agregación temporal a las tablas antes del cruce
+    tablas_sel_nps = {k: agregar_df_temporalmente(filtrar_df_por_entidades_y_metricas(v, user_query, contexto_previo), user_query, contexto_previo) for k, v in tablas_sel_nps.items()}
+    tablas_sel_tmo = {k: agregar_df_temporalmente(filtrar_df_por_entidades_y_metricas(v, user_query, contexto_previo), user_query, contexto_previo) for k, v in tablas_sel_tmo.items()}
 
     bloques = []
     for dim in ["canal", "proveedor", "pcrc", "pcrc_proveedor"]:

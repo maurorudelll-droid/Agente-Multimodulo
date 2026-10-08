@@ -499,12 +499,14 @@ REGLAS GENERALES:
    - Si el usuario solicita un rango de meses o periodo específico (ej: "de Mayo a Septiembre del 2026", "Junio, Julio y Agosto"), filtra y devuelve ÚNICAMENTE los datos correspondientes a esos meses. No incluyas meses fuera del rango.
    - Si pide un PCRC o Proveedor específico, filtra y devuelve ÚNICAMENTE ese PCRC o Proveedor.
    - Si pide segmentado por proveedores, muestra los proveedores para los periodos solicitados.
+   - Si pide un Trimestre específico (ej: "Segundo Trimestre"), incluye ÚNICAMENTE los meses que componen ese trimestre (Abril, Mayo y Junio) agrupados en dicho período.
+   - Si pide "anual", "promedio anual" o "todo el año", consolida todos los meses correspondientes al año en un único período.
 5. FORMATO ESTRICTO DE TABLA MARKDOWN:
    - CADA FILA DEBE ESTAR OBLIGATORIAMENTE EN UNA LÍNEA NUEVA SEPARADA POR SALTO DE LÍNEA (\\n).
    - NUNCA comprimas múltiples filas en una sola línea ni uses '||'.
    - Incluye SIEMPRE la línea separadora de columnas después del encabezado (| :--- | :--- | :--- |).
    - Escribe todas las filas con sus datos correspondientes de manera estándar y completa (una fila por línea). El post-procesador de la app se encarga de suprimir limpiamente los duplicados consecutivos.
-   - En la columna Periodo, utiliza siempre el nombre completo en español (ej: "Mayo 2026", "Junio 2026"), nunca números tipo "2026-05".
+   - En la columna Periodo, utiliza siempre el nombre completo en español (ej: "Mayo 2026", "Junio 2026"), o la denominación temporal consolidada correspondiente (ej: "Año 2026", "Primer Trimestre 2026", "Segundo Trimestre 2026", etc.), nunca números tipo "2026-05".
 6. SEMAFORIZACIÓN EJECUTIVA OBLIGATORIA (🟢 MEJOR Y 🔴 PEOR VALOR):
    - En la columna de la métrica consultada (para cada Periodo o grupo analizado en la tabla), agrega obligatoriamente:
      * Un círculo verde (🟢) al lado del MEJOR valor (ej: "412s 🟢" o "78.5% 🟢").
@@ -524,17 +526,37 @@ REGLAS GENERALES:
      * FÓRMULA MATEMÁTICA EXACTA: (Q MEDA / Q Llamadas) * 100.
      * Se expresa siempre en porcentaje con 1 decimal (ejemplo: "2.6%").
      * Utiliza directamente los datos matemáticos pre-calculados en la tabla cruzada provista.
-8. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
-9. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en negrita:
+8. AGREGACIÓN ANUAL (MÉTRICA ANUAL / PROMEDIO ANUAL / DE TODO EL AÑO):
+   - Si la consulta solicita una "métrica Anual", "Promedio anual", "de todo el año", "anual 2026" o expresiones equivalentes, indica que se solicita calcular la métrica de todo el año como si fuera un único período consolidado.
+   - Procedimiento de cálculo:
+     * Consolida todos los datos de todos los meses contemplados en el año solicitado que figuren en las tablas provistas.
+     * Calcula la métrica correspondiente para ese año completo:
+       - Para métricas porcentuales o ratios (%NPS, %SPL, %Transferencias, %Resolución, %Participación): calcula la tasa consolidada ponderando por el volumen correspondiente (Q Meda/Encuestas para NPS; Llamadas Válidas/Atendidas para TMO, SPL y Transferencias) o el promedio directo de los meses disponibles si no hay volumen explícito.
+       - Para tiempos operativos (TMO Total, TT, Hold, ACW): calcula el promedio ponderado por el volumen de llamadas del año (o el promedio directo de los meses).
+     * En el BLOQUE 1 (Tabla Markdown), en la columna Periodo, muestra el período como "Año 2026" (o el año solicitado), presentando una única fila por entidad/proveedor/canal (no desgloses mes a mes, salvo que el usuario lo pida expresamente).
+     * Si la consulta es por proveedor o PCRC, calcula y muestra la fila consolidada de todo el año para cada proveedor o PCRC analizado.
+9. AGREGACIÓN TRIMESTRAL (MÉTRICAS POR TRIMESTRE / Q1, Q2, Q3, Q4):
+   - Ante una solicitud de métrica trimestral ("trimestre", "trimestral", "primer trimestre", "segundo trimestre", "tercer trimestre", "cuarto trimestre", "Q1", "Q2", "Q3", "Q4"), agrupa y suma/consolida los meses correspondientes para calcular la métrica como si fuera 1 solo período.
+   - DEFINICIÓN Y COMPOSICIÓN ESTRICTA DE TRIMESTRES:
+     * Primer Trimestre (1T / Q1): Enero, Febrero y Marzo.
+     * Segundo Trimestre (2T / Q2): Abril, Mayo y Junio.
+     * Tercer Trimestre (3T / Q3): Julio, Agosto y Septiembre.
+     * Cuarto Trimestre (4T / Q4): Octubre, Noviembre y Diciembre.
+   - Procedimiento de cálculo:
+     * Agrupa y consolida los 3 meses del trimestre solicitado calculando la métrica representativa de ese trimestre como un período único.
+     * En el BLOQUE 1 (Tabla Markdown), en la columna Periodo, utiliza el nombre formal del trimestre (ej: "Primer Trimestre 2026", "Segundo Trimestre 2026", "Tercer Trimestre 2026", "Cuarto Trimestre 2026").
+     * Si el usuario pide un evolutivo de trimestres (ej: "todos los trimestres" o "comparativa trimestral"), genera una fila por cada trimestre consolidado (Primer Trimestre, Segundo Trimestre, etc.) con sus respectivas métricas consolidadas.
+10. Si la consulta combina métricas de más de una base (ej: NPS y TMO), intégralas en tu tabla y análisis de forma armónica solo con las métricas pedidas.
+11. Estructura rigurosamente la respuesta con los siguientes encabezados exactos en negrita:
    ### **BLOQUE 1: Datos Operativos**
-   (Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados: % con 1 decimal, tiempos enteros con 's', periodo en español, y semáforos 🟢 / 🔴 en los valores extremos. Cada fila en una línea nueva separada por \\n).
+   (Tabla Markdown con ÚNICAMENTE las métricas y periodos solicitados: % con 1 decimal, tiempos enteros con 's', periodo en español o denominación anual/trimestral, y semáforos 🟢 / 🔴 en los valores extremos. Cada fila en una línea nueva separada por \\n).
 
    ### **BLOQUE 2: Hallazgos Clave**
    (Máximo 3 viñetas ejecutivas ultra-cortas con desvíos y hallazgos clave sobre los datos solicitados: 🟢 mejor y 🔴 peor).
 
    ### **BLOQUE 3: Trazabilidad**
    (Filtros aplicados, Nivel de agregación, Bases consultadas: {', '.join(nombres_modulos)}).
-10. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
+12. Si el usuario solicita un gráfico, curva, comparativa visual o torta, incluye al final el bloque <chart_json> con su formato estándar, graficando ÚNICAMENTE la métrica o métricas solicitadas.
 
 DIRECTIVAS ESPECÍFICAS DE LAS BASES ACTIVAS:
 """ + "\n\n".join(instrucciones_modulos)

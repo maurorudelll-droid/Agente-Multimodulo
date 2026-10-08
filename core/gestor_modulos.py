@@ -254,6 +254,7 @@ def filtrar_df_por_entidades_y_metricas(df, user_query="", contexto_previo=""):
     cols_seleccionadas = list(cols_base)
 
     q_metricas = q if any(m in q for m in ["nps", "spl", "tmo", "transf", "1l", "2l", "resol", "sat", "llamadas", "encuestas"]) else q_ctx
+    pide_agregacion = any(w in q_metricas for w in ["anual", "ano", "año", "trimestr", "q1", "q2", "q3", "q4", "promedio", "acumulado", "consolidado"])
 
     for c in df_res.columns:
         if c in cols_base:
@@ -265,8 +266,8 @@ def filtrar_df_por_entidades_y_metricas(df, user_query="", contexto_previo=""):
            ("resol" in c_low and ("resol" in q_metricas or "fcr" in q_metricas)) or \
            ("sat" in c_low and ("sat" in q_metricas or "csat" in q_metricas)) or \
            ("transf" in c_low and ("transf" in q_metricas or "1l" in q_metricas or "2l" in q_metricas)) or \
-           ("llamadas" in c_low and ("llamadas" in q_metricas or "volumen" in q_metricas)) or \
-           ("encuestas" in c_low and ("encuestas" in q_metricas or "q meda" in q_metricas or "participac" in q_metricas)):
+           ("llamadas" in c_low and ("llamadas" in q_metricas or "volumen" in q_metricas or pide_agregacion)) or \
+           ("encuestas" in c_low and ("encuestas" in q_metricas or "q meda" in q_metricas or "participac" in q_metricas or pide_agregacion)):
             cols_seleccionadas.append(c)
 
     # Si se seleccionaron métricas específicas, estrechar las columnas

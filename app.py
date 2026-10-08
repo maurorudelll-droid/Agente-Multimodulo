@@ -171,7 +171,7 @@ with st.sidebar:
                 for met in metricas:
                     st.markdown(f"• `{met}`")
 
-    st.caption("⚡ **Powered by Mauro. R**")
+    st.caption("⚡ **Powered by Mauro. R** &nbsp;|&nbsp; `v2.2`")
     st.divider()
 
     # Botones de control
@@ -271,7 +271,7 @@ with col_av:
         st.markdown("## 🤖")
 with col_head:
     st.title("Agente Master de Inteligencia Operativa")
-    st.caption("Arquitectura V2 Multi-Módulo &nbsp;|&nbsp; Enrutamiento inteligente entre NPS, TMO, Transferencias y SPL")
+    st.caption("Arquitectura V2 Multi-Módulo &nbsp;|&nbsp; Enrutamiento inteligente entre NPS, TMO, Transferencias y SPL &nbsp;|&nbsp; 🏷️ **v2.2**")
 
 def es_tabla_compacta(texto_bloque1):
     """
